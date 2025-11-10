@@ -1,9 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { ConvexProviderWithAuth, ConvexReactClient, useConvexAuth, useQuery, useAction } from 'convex/react';
-import { api } from '../../convex/_generated/api';
+import React, { createContext, useContext, useState } from 'react';
 import { User } from '../types';
-
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
 
 // Dummy auth hook for demo purposes
 const useDummyAuth = () => ({
@@ -31,25 +27,11 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return (
-    <ConvexProviderWithAuth client={convex} useAuth={useDummyAuth}>
-      <AuthProviderInner>{children}</AuthProviderInner>
-    </ConvexProviderWithAuth>
-  );
+  return <AuthProviderInner>{children}</AuthProviderInner>;
 };
 
 const AuthProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useConvexAuth();
-  const currentUser = useQuery(api.users.getCurrentUser);
   const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    if (isAuthenticated && currentUser) {
-      setUser(currentUser);
-    } else {
-      setUser(null);
-    }
-  }, [isAuthenticated, currentUser]);
 
   const signIn = async () => {
     // For demo purposes, we'll simulate authentication
@@ -69,7 +51,7 @@ const AuthProviderInner: React.FC<{ children: React.ReactNode }> = ({ children }
 
   const value: AuthContextType = {
     user,
-    isLoading: isLoading || (isAuthenticated && !currentUser),
+    isLoading: false,
     signIn,
     signUp,
     signOut,

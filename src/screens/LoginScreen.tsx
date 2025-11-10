@@ -7,7 +7,10 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { loginSchema, type LoginFormData } from '../lib/validations';
 
 interface LoginScreenProps {
   onSignUp: () => void;
@@ -16,23 +19,48 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onSignUp, onLogin, onForgotPassword }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { signIn } = useSupabaseAuth();
+  const [formData, setFormData] = useState<LoginFormData>({
+    email: '',
+    password: '',
+  });
+  const [errors, setErrors] = useState<Partial<LoginFormData>>({});
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+  const validateForm = (): boolean => {
+    try {
+      loginSchema.parse(formData);
+      setErrors({});
+      return true;
+    } catch (error: any) {
+      const validationErrors: Partial<LoginFormData> = {};
+      error.errors.forEach((err: any) => {
+        validationErrors[err.path[0] as keyof LoginFormData] = err.message;
+      });
+      setErrors(validationErrors);
+      return false;
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!validateForm()) {
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
+    setLoading(true);
+    try {
+      const { error } = await signIn(formData.email, formData.password);
+      if (error) {
+        Alert.alert('Login Failed', error.message);
+      } else {
+        // Navigation will be handled by auth state change
+        onLogin({ email: formData.email, password: formData.password });
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
     }
-
-    onLogin({ email, password });
   };
 
   return (
@@ -45,23 +73,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onSignUp, onLogin, onForgotPa
       {/* Input Fields */}
       <View style={styles.inputContainer}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.email && styles.inputError]}
           placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
+          value={formData.email}
+          onChangeText={(value) => {
+            setFormData(prev => ({ ...prev, email: value }));
+            if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
+          }}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
         />
+        {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.password && styles.inputError]}
           placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
+          value={formData.password}
+          onChangeText={(value) => {
+            setFormData(prev => ({ ...prev, password: value }));
+            if (errors.password) setErrors(prev => ({ ...prev, password: undefined }));
+          }}
           secureTextEntry
           autoCapitalize="none"
         />
+        {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
       </View>
 
       {/* Forgot Password */}
@@ -70,8 +106,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onSignUp, onLogin, onForgotPa
       </TouchableOpacity>
 
       {/* Login Button */}
-      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.loginButtonText}>Sign In</Text>
+      <TouchableOpacity
+        style={[styles.loginButton, loading && styles.buttonDisabled]}
+        onPress={handleLogin}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.loginButtonText}>Sign In</Text>
+        )}
       </TouchableOpacity>
 
       {/* Sign Up Link */}
@@ -154,6 +198,19 @@ const styles = StyleSheet.create({
   signUpLink: {
     color: '#00A8A8',
     fontWeight: 'bold',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  inputError: {
+    borderColor: '#FF3B30',
+    borderWidth: 1,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
   },
 });
 

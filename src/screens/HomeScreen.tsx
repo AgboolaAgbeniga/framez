@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,64 +8,102 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-// import { useQuery } from 'convex/react';
-// import { api } from '../../convex/_generated/api';
+import { supabase } from '../lib/supabase';
 import { Post } from '../types';
-import { useAuth } from '../context/AuthContext';
+import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 
 const { width } = Dimensions.get('window');
 
-const HomeScreen: React.FC = () => {
-  const { user } = useAuth();
+const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { user } = useSupabaseAuth();
   const [searchText, setSearchText] = useState('');
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data for demo
-  const posts: Post[] = [
-    {
-      _id: '1',
-      userId: 'user1',
-      content: 'Hello Framez! This is my first post. 🎉',
-      timestamp: Date.now() - 3600000, // 1 hour ago
-      user: {
-        name: 'Demo User',
-        avatarUrl: 'https://avatar.iran.liara.run/public/boy',
-      },
-    },
-    {
-      _id: '2',
-      userId: 'user2',
-      content: 'Beautiful sunset today! 📸',
-      imageUrl: 'https://via.placeholder.com/400x300/FF6B6B/FFFFFF?text=Sunset',
-      timestamp: Date.now() - 7200000, // 2 hours ago
-      user: {
-        name: 'Photo Lover',
-        avatarUrl: 'https://avatar.iran.liara.run/public/girl',
-      },
-    },
-    {
-      _id: '3',
-      userId: 'user3',
-      content: 'Just finished an amazing workout! 💪 Feeling energized and ready for the day ahead.',
-      timestamp: Date.now() - 10800000, // 3 hours ago
-      user: {
-        name: 'Fitness Fan',
-        avatarUrl: 'https://avatar.iran.liara.run/public/boy',
-      },
-    },
-    {
-      _id: '4',
-      userId: 'user4',
-      content: 'Coffee and coding - the perfect combination ☕💻',
-      imageUrl: 'https://via.placeholder.com/400x300/4ECDC4/FFFFFF?text=Coffee+%26+Code',
-      timestamp: Date.now() - 14400000, // 4 hours ago
-      user: {
-        name: 'Code Ninja',
-        avatarUrl: 'https://avatar.iran.liara.run/public/girl',
-      },
-    },
-  ];
+  // Fetch posts from Supabase
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch posts with user profile data
+        const { data, error } = await supabase
+          .from('posts')
+          .select(`
+            id,
+            content,
+            image_urls,
+            location,
+            visibility,
+            created_at,
+            user_id,
+            profiles:user_id (
+              id,
+              display_name,
+              username,
+              avatar_url
+            )
+          `)
+          .eq('visibility', 'public')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error('Error fetching posts:', error);
+          return;
+        }
+
+        // Get likes and comments counts for each post
+        const postsWithCounts = await Promise.all(
+          data.map(async (post: any) => {
+            const [likesResult, commentsResult, userLikeResult] = await Promise.all([
+              supabase
+                .from('likes')
+                .select('id', { count: 'exact' })
+                .eq('post_id', post.id),
+              supabase
+                .from('comments')
+                .select('id', { count: 'exact' })
+                .eq('post_id', post.id),
+              user?.id ? supabase
+                .from('likes')
+                .select('id')
+                .eq('post_id', post.id)
+                .eq('user_id', user.id)
+                .single() : Promise.resolve({ data: null }),
+            ]);
+
+            return {
+              _id: post.id,
+              userId: post.user_id,
+              content: post.content,
+              imageUrl: post.image_urls?.[0] || null,
+              timestamp: new Date(post.created_at).getTime(),
+              user: {
+                name: post.profiles?.display_name || 'Unknown User',
+                avatarUrl: post.profiles?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+              },
+              likesCount: likesResult.count || 0,
+              commentsCount: commentsResult.count || 0,
+              isLiked: !!userLikeResult.data,
+            };
+          })
+        );
+
+        setPosts(postsWithCounts);
+      } catch (error) {
+        console.error('Error fetching posts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts();
+  }, []);
 
   // Mock stories data
   const stories = [
@@ -85,17 +123,129 @@ const HomeScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  const handleLikePost = async (postId: string) => {
+    if (!user?.id) {
+      Alert.alert('Error', 'You must be logged in to like posts');
+      return;
+    }
+
+    try {
+      // Check if user already liked this post
+      const { data: existingLike } = await supabase
+        .from('likes')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('post_id', postId)
+        .single();
+
+      if (existingLike) {
+        // Unlike the post
+        await supabase
+          .from('likes')
+          .delete()
+          .eq('id', existingLike.id);
+      } else {
+        // Like the post
+        await supabase
+          .from('likes')
+          .insert({
+            user_id: user.id,
+            post_id: postId,
+          });
+      }
+
+      // Refresh posts to update like counts
+      // Re-fetch posts to update like counts
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          id,
+          content,
+          image_urls,
+          location,
+          visibility,
+          created_at,
+          user_id,
+          profiles:user_id (
+            id,
+            display_name,
+            username,
+            avatar_url
+          )
+        `)
+        .eq('visibility', 'public')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (!error && data) {
+        // Get likes and comments counts for each post
+        const postsWithCounts = await Promise.all(
+          data.map(async (post: any) => {
+            const [likesResult, commentsResult, userLikeResult] = await Promise.all([
+              supabase
+                .from('likes')
+                .select('id', { count: 'exact' })
+                .eq('post_id', post.id),
+              supabase
+                .from('comments')
+                .select('id', { count: 'exact' })
+                .eq('post_id', post.id),
+              user?.id ? supabase
+                .from('likes')
+                .select('id')
+                .eq('post_id', post.id)
+                .eq('user_id', user.id)
+                .single() : Promise.resolve({ data: null }),
+            ]);
+
+            return {
+              _id: post.id,
+              userId: post.user_id,
+              content: post.content,
+              imageUrl: post.image_urls?.[0] || null,
+              timestamp: new Date(post.created_at).getTime(),
+              user: {
+                name: post.profiles?.display_name || 'Unknown User',
+                avatarUrl: post.profiles?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+              },
+              likesCount: likesResult.count || 0,
+              commentsCount: commentsResult.count || 0,
+              isLiked: !!userLikeResult.data,
+            };
+          })
+        );
+
+        setPosts(postsWithCounts);
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    }
+  };
+
+  const handleCommentPress = (postId: string) => {
+    // Navigate to post detail screen
+    navigation.navigate('PostDetail', { postId });
+  };
+
+  const handleUserPress = (userId: string) => {
+    navigation.navigate('UserProfile', { userId });
+  };
+
   const renderPost = ({ item }: { item: Post }) => (
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
-        <Image
-          source={{
-            uri: item.user?.avatarUrl || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
-          }}
-          style={styles.postAvatar}
-        />
+        <TouchableOpacity onPress={() => handleUserPress(item.userId)}>
+          <Image
+            source={{
+              uri: item.user?.avatarUrl || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+            }}
+            style={styles.postAvatar}
+          />
+        </TouchableOpacity>
         <View style={styles.postUserInfo}>
-          <Text style={styles.postUsername}>{item.user?.name || 'Unknown'}</Text>
+          <TouchableOpacity onPress={() => handleUserPress(item.userId)}>
+            <Text style={styles.postUsername}>{item.user?.name || 'Unknown'}</Text>
+          </TouchableOpacity>
           <Text style={styles.postTimestamp}>
             {new Date(item.timestamp).toLocaleTimeString([], {
               hour: '2-digit',
@@ -112,14 +262,24 @@ const HomeScreen: React.FC = () => {
       )}
 
       <View style={styles.postActions}>
-        <TouchableOpacity style={styles.actionButton}>
-          <MaterialIcons name="favorite-border" size={24} color="#FF3B30" />
-          <Text style={styles.actionCount}>12</Text>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => handleLikePost(item._id)}
+        >
+          <MaterialIcons
+            name={item.isLiked ? "favorite" : "favorite-border"}
+            size={24}
+            color="#FF3B30"
+          />
+          <Text style={styles.actionCount}>{item.likesCount || 0}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => handleCommentPress(item._id)}
+        >
           <MaterialIcons name="chat-bubble-outline" size={24} color="#8E8E93" />
-          <Text style={styles.actionCount}>5</Text>
+          <Text style={styles.actionCount}>{item.commentsCount || 0}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton}>
@@ -144,31 +304,44 @@ const HomeScreen: React.FC = () => {
         </View>
       </View>
 
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item._id}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <View style={styles.storiesContainer}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.storiesScroll}
-            >
-              {stories.map((story) => (
-                <TouchableOpacity key={story.id} style={styles.storyItem}>
-                  <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
-                  <Text style={styles.storyName} numberOfLines={1}>
-                    {story.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        }
-        contentContainerStyle={styles.feedContainer}
-      />
+      {/* Fixed Stories Section */}
+      <View style={styles.storiesContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.storiesScroll}
+        >
+          {stories.map((story) => (
+            <TouchableOpacity key={story.id} style={styles.storyItem}>
+              <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
+              <Text style={styles.storyName} numberOfLines={1}>
+                {story.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Posts Feed */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#006175" />
+          <Text style={styles.loadingText}>Loading posts...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item) => item._id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.feedContainer}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No posts yet. Be the first to share something!</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 };
@@ -291,6 +464,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8E8E93',
     marginLeft: 4,
+    fontFamily: 'Inter-Regular',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontFamily: 'Inter-Regular',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#8E8E93',
+    textAlign: 'center',
     fontFamily: 'Inter-Regular',
   },
 });

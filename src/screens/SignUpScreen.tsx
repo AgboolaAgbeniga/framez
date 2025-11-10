@@ -8,8 +8,12 @@ import {
   Alert,
   Image,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { signUpSchema, type SignUpFormData } from '../lib/validations';
+import { uploadAvatar, validateFile } from '../lib/storage';
 
 interface SignUpScreenProps {
   onSignIn: () => void;
@@ -17,10 +21,16 @@ interface SignUpScreenProps {
 }
 
 const SignUpScreen: React.FC<SignUpScreenProps> = ({ onSignIn, onSignUp }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { signUp } = useSupabaseAuth();
+  const [formData, setFormData] = useState<SignUpFormData>({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  });
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Partial<SignUpFormData>>({});
+  const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -42,25 +52,65 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ onSignIn, onSignUp }) => {
     }
   };
 
-  const handleSignUp = () => {
-    if (!name || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+  const validateForm = (): boolean => {
+    try {
+      signUpSchema.parse(formData);
+      setErrors({});
+      return true;
+    } catch (error: any) {
+      const validationErrors: Partial<SignUpFormData> = {};
+      error.errors.forEach((err: any) => {
+        validationErrors[err.path[0] as keyof SignUpFormData] = err.message;
+      });
+      setErrors(validationErrors);
+      return false;
+    }
+  };
+
+  const handleSignUp = async () => {
+    if (!validateForm()) {
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
+    setLoading(true);
+    try {
+      // Generate username from name
+      const username = formData.name.toLowerCase().replace(/\s+/g, '') + Math.floor(Math.random() * 1000);
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
-      return;
-    }
+      // Upload profile image if provided
+      let avatarUrl = null;
+      if (profileImage) {
+        // Validate file before upload
+        const validation = await validateFile(profileImage);
+        if (!validation.valid) {
+          Alert.alert('Error', validation.error);
+          setLoading(false);
+          return;
+        }
 
-    onSignUp({ name, email, password, profileImage });
+        // Upload to Supabase Storage (we'll get user ID after signup)
+        // For now, we'll handle this after account creation
+      }
+
+      const result = await signUp(formData.email, formData.password, {
+        name: formData.name.trim(),
+        username: username,
+      });
+
+      if (result.error) {
+        Alert.alert('Sign Up Failed', result.error.message);
+      } else {
+        // Note: Profile image upload is handled in the SupabaseAuthContext
+        // The context creates the profile with the generated avatar URL
+
+        Alert.alert('Success', 'Account created successfully! Please check your email to verify your account.');
+        onSignUp({ name: formData.name, email: formData.email, password: formData.password, profileImage });
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -87,36 +137,69 @@ const SignUpScreen: React.FC<SignUpScreenProps> = ({ onSignIn, onSignUp }) => {
       {/* Input Fields */}
       <View style={styles.inputContainer}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.name && styles.inputError]}
           placeholder="Full Name"
-          value={name}
-          onChangeText={setName}
+          value={formData.name}
+          onChangeText={(value) => {
+            setFormData(prev => ({ ...prev, name: value }));
+            if (errors.name) setErrors(prev => ({ ...prev, name: undefined }));
+          }}
           autoCapitalize="words"
         />
+        {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.email && styles.inputError]}
           placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
+          value={formData.email}
+          onChangeText={(value) => {
+            setFormData(prev => ({ ...prev, email: value }));
+            if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
+          }}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
         />
+        {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, errors.password && styles.inputError]}
           placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
+          value={formData.password}
+          onChangeText={(value) => {
+            setFormData(prev => ({ ...prev, password: value }));
+            if (errors.password) setErrors(prev => ({ ...prev, password: undefined }));
+          }}
           secureTextEntry
           autoCapitalize="none"
         />
+        {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+
+        <TextInput
+          style={[styles.input, errors.confirmPassword && styles.inputError]}
+          placeholder="Confirm Password"
+          value={formData.confirmPassword}
+          onChangeText={(value) => {
+            setFormData(prev => ({ ...prev, confirmPassword: value }));
+            if (errors.confirmPassword) setErrors(prev => ({ ...prev, confirmPassword: undefined }));
+          }}
+          secureTextEntry
+          autoCapitalize="none"
+        />
+        {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
       </View>
 
       {/* Sign Up Button */}
-      <TouchableOpacity style={styles.signUpButton} onPress={handleSignUp}>
-        <Text style={styles.signUpButtonText}>Sign Up</Text>
+      <TouchableOpacity
+        style={[styles.signUpButton, loading && styles.buttonDisabled]}
+        onPress={handleSignUp}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.signUpButtonText}>Sign Up</Text>
+        )}
       </TouchableOpacity>
 
       {/* Sign In Link */}
@@ -226,6 +309,19 @@ const styles = StyleSheet.create({
   signInLink: {
     color: '#00A8A8',
     fontWeight: 'bold',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  inputError: {
+    borderColor: '#FF3B30',
+    borderWidth: 1,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: 4,
+    marginBottom: 8,
   },
 });
 

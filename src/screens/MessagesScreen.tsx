@@ -1,75 +1,416 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  Image,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  Dimensions,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabase';
+import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { Message } from '../types';
 
-interface Message {
+interface Conversation {
   id: string;
-  sender: string;
+  otherUserId: string;
+  otherUserName: string;
+  otherUserAvatar: string;
   lastMessage: string;
-  timestamp: string;
+  timestamp: number;
   unread: boolean;
 }
 
-const MessagesScreen: React.FC = () => {
-  // Mock data for demonstration
-  const messages: Message[] = [
-    {
-      id: '1',
-      sender: 'Alice Johnson',
-      lastMessage: 'Hey! How are you doing?',
-      timestamp: '2 min ago',
-      unread: true,
-    },
-    {
-      id: '2',
-      sender: 'Bob Smith',
-      lastMessage: 'Thanks for the recommendation!',
-      timestamp: '1 hour ago',
-      unread: false,
-    },
-    {
-      id: '3',
-      sender: 'Carol Williams',
-      lastMessage: 'See you at the event tomorrow',
-      timestamp: '3 hours ago',
-      unread: true,
-    },
-    {
-      id: '4',
-      sender: 'David Brown',
-      lastMessage: 'Great meeting you today!',
-      timestamp: '1 day ago',
-      unread: false,
-    },
-  ];
+interface ChatMessage {
+  id: string;
+  text: string;
+  isSender: boolean;
+  timestamp: string;
+}
 
-  const renderMessage = ({ item }: { item: Message }) => (
-    <View style={styles.messageItem}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{item.sender.charAt(0)}</Text>
-      </View>
+const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
+  const { user } = useSupabaseAuth();
+  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [searchText, setSearchText] = useState('');
+  const [newMessage, setNewMessage] = useState('');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const flatListRef = useRef<FlatList>(null);
+
+  // Check if navigating from profile to start a new conversation
+  const directUserId = route?.params?.userId;
+  const directUserName = route?.params?.userName;
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        setIsKeyboardVisible(true);
+      }
+    );
+
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+        setIsKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
+
+  // Fetch conversations
+  useEffect(() => {
+    if (user?.id) {
+      fetchConversations();
+    }
+  }, [user]);
+
+  // Handle direct messaging from profile
+  useEffect(() => {
+    if (directUserId && directUserName && user?.id) {
+      // Check if conversation already exists
+      const existingConversation = conversations.find(conv => conv.otherUserId === directUserId);
+      if (existingConversation) {
+        setSelectedChat(existingConversation.id);
+        fetchChatMessages(directUserId);
+      } else {
+        // Start new conversation with direct user info
+        setSelectedChat(directUserId);
+        setChatMessages([]);
+      }
+    }
+  }, [directUserId, directUserName, conversations]);
+
+  const fetchConversations = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch messages where user is sender or receiver
+      const { data: sentMessages, error: sentError } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          content,
+          timestamp,
+          receiver_id,
+          profiles!messages_receiver_id_fkey (
+            id,
+            display_name,
+            avatar_url
+          )
+        `)
+        .eq('sender_id', user!.id)
+        .order('timestamp', { ascending: false });
+
+      const { data: receivedMessages, error: receivedError } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          content,
+          timestamp,
+          sender_id,
+          profiles!messages_sender_id_fkey (
+            id,
+            display_name,
+            avatar_url
+          )
+        `)
+        .eq('receiver_id', user!.id)
+        .order('timestamp', { ascending: false });
+
+      if (sentError || receivedError) {
+        console.error('Error fetching messages:', sentError || receivedError);
+        return;
+      }
+
+      // Combine and group by conversation
+      const allMessages = [
+        ...(sentMessages || []).map(msg => ({ ...msg, isSent: true })),
+        ...(receivedMessages || []).map(msg => ({ ...msg, isSent: false })),
+      ];
+
+      const conversationMap = new Map<string, Conversation>();
+
+      allMessages.forEach((msg: any) => {
+        const otherUserId = msg.isSent ? msg.receiver_id : msg.sender_id;
+        const otherUser = msg.isSent ? msg.profiles : msg.profiles;
+        const conversationId = [user!.id, otherUserId].sort().join('_');
+
+        if (!conversationMap.has(conversationId)) {
+          conversationMap.set(conversationId, {
+            id: conversationId,
+            otherUserId,
+            otherUserName: otherUser?.display_name || 'Unknown User',
+            otherUserAvatar: otherUser?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+            lastMessage: msg.content,
+            timestamp: msg.timestamp,
+            unread: !msg.isSent && !msg.is_read, // Assuming is_read field exists
+          });
+        }
+      });
+
+      setConversations(Array.from(conversationMap.values()));
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchChatMessages = async (otherUserId: string) => {
+    try {
+      // Fetch messages between current user and other user
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          content,
+          timestamp,
+          sender_id
+        `)
+        .or(`and(sender_id.eq.${user!.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user!.id})`)
+        .order('timestamp', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching chat messages:', error);
+        return;
+      }
+
+      const transformedMessages: ChatMessage[] = (messages || []).map((msg: any) => ({
+        id: msg.id,
+        text: msg.content,
+        isSender: msg.sender_id === user!.id,
+        timestamp: new Date(msg.timestamp).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+      }));
+
+      setChatMessages(transformedMessages);
+    } catch (error) {
+      console.error('Error fetching chat messages:', error);
+    }
+  };
+
+  const selectedChatData = conversations.find(chat => chat.id === selectedChat) || (directUserId && directUserName ? {
+    id: directUserId,
+    otherUserId: directUserId,
+    otherUserName: directUserName,
+    otherUserAvatar: 'https://avatar.iran.liara.run/public/boy', // Default avatar
+    lastMessage: '',
+    timestamp: Date.now(),
+    unread: false,
+  } : null);
+
+  const renderConversation = ({ item }: { item: Conversation }) => (
+    <TouchableOpacity
+      style={styles.messageItem}
+      onPress={() => {
+        setSelectedChat(item.id);
+        fetchChatMessages(item.otherUserId);
+      }}
+    >
+      <Image source={{ uri: item.otherUserAvatar }} style={styles.avatar} />
       <View style={styles.messageContent}>
         <View style={styles.messageHeader}>
-          <Text style={styles.senderName}>{item.sender}</Text>
-          <Text style={styles.timestamp}>{item.timestamp}</Text>
+          <Text style={styles.senderName}>{item.otherUserName}</Text>
+          <Text style={styles.timestamp}>
+            {new Date(item.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </Text>
         </View>
         <Text style={[styles.lastMessage, item.unread && styles.unreadMessage]}>
           {item.lastMessage}
         </Text>
       </View>
       {item.unread && <View style={styles.unreadDot} />}
+    </TouchableOpacity>
+  );
+
+  const renderChatMessage = ({ item }: { item: ChatMessage }) => (
+    <View style={[
+      styles.chatMessageContainer,
+      item.isSender ? styles.senderMessage : styles.receiverMessage
+    ]}>
+      <Text style={[
+        styles.chatMessageText,
+        item.isSender ? styles.senderText : styles.receiverText
+      ]}>
+        {item.text}
+      </Text>
+      <Text style={styles.chatTimestamp}>{item.timestamp}</Text>
     </View>
   );
 
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedChat || !user?.id) return;
+
+    try {
+      const otherUserId = selectedChat.includes('_')
+        ? selectedChat.split('_').find(id => id !== user.id)
+        : selectedChat;
+
+      if (!otherUserId) return;
+
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          sender_id: user.id,
+          receiver_id: otherUserId,
+          content: newMessage.trim(),
+        });
+
+      if (error) {
+        console.error('Error sending message:', error);
+        Alert.alert('Error', 'Failed to send message. Please try again.');
+        return;
+      }
+
+      // Add message to local state
+      const newChatMessage: ChatMessage = {
+        id: Date.now().toString(), // Temporary ID
+        text: newMessage.trim(),
+        isSender: true,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+      };
+
+      setChatMessages(prev => [...prev, newChatMessage]);
+      setNewMessage('');
+
+      // Refresh conversations to update last message
+      fetchConversations();
+    } catch (error) {
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+    }
+  };
+
+  if (selectedChat) {
+    const { height: screenHeight } = Dimensions.get('window');
+    const inputContainerHeight = 70; // Approximate height of message input container
+    const availableHeight = screenHeight - keyboardHeight - inputContainerHeight - 100; // 100 for header
+
+    return (
+      <View style={styles.container}>
+        {/* Chat Header */}
+        <View style={styles.chatHeader}>
+          <TouchableOpacity onPress={() => setSelectedChat(null)} style={styles.backButton}>
+            <MaterialIcons name="arrow-back" size={24} color="#000000" />
+          </TouchableOpacity>
+          <Image source={{ uri: selectedChatData?.otherUserAvatar }} style={styles.chatAvatar} />
+          <Text style={styles.chatUserName}>{selectedChatData?.otherUserName}</Text>
+        </View>
+
+        {/* Messages */}
+        <View style={[styles.messagesContainer, { height: availableHeight }]}>
+          <FlatList
+            ref={flatListRef}
+            data={chatMessages}
+            renderItem={renderChatMessage}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.chatContainer}
+            showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          />
+        </View>
+
+        {/* Message Input - Positioned absolutely above keyboard */}
+        <View style={[
+          styles.messageInputContainer,
+          {
+            position: 'absolute',
+            bottom: keyboardHeight || 0,
+            left: 0,
+            right: 0,
+          }
+        ]}>
+          <TouchableOpacity style={styles.attachmentButton}>
+            <MaterialIcons name="attach-file" size={24} color="#8E8E93" />
+          </TouchableOpacity>
+          <TextInput
+            style={styles.messageInput}
+            placeholder="Type a message..."
+            value={newMessage}
+            onChangeText={setNewMessage}
+            multiline
+            maxLength={1000}
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
+            <MaterialIcons name="send" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Messages</Text>
-      <FlatList
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
-      />
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.headerIcon}>
+          <MaterialIcons name="arrow-back" size={24} color="#000000" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Messages</Text>
+        <TouchableOpacity style={styles.headerIcon}>
+          <MaterialIcons name="add" size={24} color="#000000" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <MaterialIcons name="search" size={20} color="#8E8E93" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search messages"
+          value={searchText}
+          onChangeText={setSearchText}
+        />
+      </View>
+
+      {/* Messages List */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#006175" />
+          <Text style={styles.loadingText}>Loading conversations...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={conversations}
+          renderItem={renderConversation}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No conversations yet. Start messaging!</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 };
@@ -78,15 +419,58 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  // Header styles
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
   },
-  title: {
-    fontSize: 24,
+  headerIcon: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 20,
+    color: '#000000',
   },
+  // Search styles
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+    borderRadius: 10,
+    marginHorizontal: 20,
+    marginVertical: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#000000',
+  },
+  // Messages list styles
   listContainer: {
     paddingHorizontal: 20,
   },
@@ -95,21 +479,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#E5E5EA',
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#00A8A8',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     marginRight: 15,
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   messageContent: {
     flex: 1,
@@ -123,25 +499,148 @@ const styles = StyleSheet.create({
   senderName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#000000',
   },
   timestamp: {
     fontSize: 12,
-    color: '#A0A0A0',
+    color: '#8E8E93',
   },
   lastMessage: {
     fontSize: 14,
-    color: '#666',
+    color: '#8E8E93',
   },
   unreadMessage: {
     fontWeight: 'bold',
-    color: '#333',
+    color: '#000000',
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#00A8A8',
+    backgroundColor: '#FF3B30',
+  },
+  // Chat window styles
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  chatAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  chatUserName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000000',
+  },
+  chatContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  chatMessageContainer: {
+    marginBottom: 15,
+    maxWidth: '80%',
+  },
+  senderMessage: {
+    alignSelf: 'flex-end',
+  },
+  receiverMessage: {
+    alignSelf: 'flex-start',
+  },
+  chatMessageText: {
+    padding: 12,
+    borderRadius: 18,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  senderText: {
+    backgroundColor: '#FF3B30',
+    color: '#FFFFFF',
+  },
+  receiverText: {
+    backgroundColor: '#F2F2F7',
+    color: '#000000',
+  },
+  chatTimestamp: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: 5,
+    textAlign: 'right',
+  },
+  // Message input styles
+  messageInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5EA',
+  },
+  attachmentButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  messageInput: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    fontSize: 16,
+    maxHeight: 100,
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  messagesContainer: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#8E8E93',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#8E8E93',
+    textAlign: 'center',
   },
 });
 

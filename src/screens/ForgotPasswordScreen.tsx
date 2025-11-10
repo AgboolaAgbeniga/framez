@@ -7,7 +7,9 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 
 interface ForgotPasswordScreenProps {
   onSendOTP: (email: string) => void;
@@ -15,9 +17,11 @@ interface ForgotPasswordScreenProps {
 }
 
 const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onSendOTP, onBackToLogin }) => {
+  const { resetPassword } = useSupabaseAuth();
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSendOTP = () => {
+  const handleSendOTP = async () => {
     if (!email) {
       Alert.alert('Error', 'Please enter your email address');
       return;
@@ -30,7 +34,23 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onSendOTP, 
       return;
     }
 
-    onSendOTP(email);
+    setLoading(true);
+    try {
+      const { error } = await resetPassword(email);
+      if (error) {
+        Alert.alert('Error', error.message);
+      } else {
+        Alert.alert(
+          'Reset Email Sent',
+          'Check your email for password reset instructions.',
+          [{ text: 'OK', onPress: () => onSendOTP(email) }]
+        );
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,8 +74,16 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onSendOTP, 
       </View>
 
       {/* Send OTP Button */}
-      <TouchableOpacity style={styles.sendButton} onPress={handleSendOTP}>
-        <Text style={styles.sendButtonText}>Send Verification Code</Text>
+      <TouchableOpacity
+        style={[styles.sendButton, loading && styles.buttonDisabled]}
+        onPress={handleSendOTP}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.sendButtonText}>Send Reset Email</Text>
+        )}
       </TouchableOpacity>
 
       {/* Back to Login */}
@@ -124,6 +152,9 @@ const styles = StyleSheet.create({
     color: '#006175',
     fontSize: 16,
     fontWeight: '500',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
 

@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { useConvexAuth } from 'convex/react';
 
 const AuthScreen: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -19,7 +18,6 @@ const AuthScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const { signIn, signUp } = useAuth();
-  const { isLoading } = useConvexAuth();
 
   const handleAuth = async () => {
     if (!email || !password || (!isLogin && !name)) {
@@ -43,13 +41,6 @@ const AuthScreen: React.FC = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#007AFF" />
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>

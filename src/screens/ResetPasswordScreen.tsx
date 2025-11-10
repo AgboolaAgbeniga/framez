@@ -7,7 +7,9 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 
 interface ResetPasswordScreenProps {
   onResetPassword: (newPassword: string, confirmPassword: string) => void;
@@ -16,8 +18,9 @@ interface ResetPasswordScreenProps {
 const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ onResetPassword }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     if (!newPassword || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -33,7 +36,24 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ onResetPasswo
       return;
     }
 
-    onResetPassword(newPassword, confirmPassword);
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) {
+        Alert.alert('Error', error.message);
+      } else {
+        Alert.alert('Success', 'Password updated successfully!', [
+          { text: 'OK', onPress: () => onResetPassword(newPassword, confirmPassword) }
+        ]);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,8 +85,16 @@ const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({ onResetPasswo
       </View>
 
       {/* Reset Password Button */}
-      <TouchableOpacity style={styles.resetButton} onPress={handleResetPassword}>
-        <Text style={styles.resetButtonText}>Reset Password</Text>
+      <TouchableOpacity
+        style={[styles.resetButton, loading && styles.buttonDisabled]}
+        onPress={handleResetPassword}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.resetButtonText}>Reset Password</Text>
+        )}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -121,6 +149,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
 

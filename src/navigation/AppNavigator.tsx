@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { TouchableOpacity, Text } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 
 // Screens
 import SplashScreen from '../screens/SplashScreen';
@@ -19,6 +20,9 @@ import HomeScreen from '../screens/HomeScreen';
 import CreatePostScreen from '../screens/CreatePostScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import PostDetailScreen from '../screens/PostDetailScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import UserProfileScreen from '../screens/ProfileScreen'; // Reuse ProfileScreen for user profiles
 
 const AuthStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -26,9 +30,9 @@ const Tab = createBottomTabNavigator();
 const MainTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName: any;
+      screenOptions={({ route }: { route: any }) => ({
+        tabBarIcon: ({ focused, color, size }: { focused: boolean; color: string; size: number }) => {
+          let iconName: keyof typeof MaterialIcons.glyphMap;
 
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home';
@@ -38,11 +42,13 @@ const MainTabNavigator: React.FC = () => {
             iconName = focused ? 'chat' : 'chat';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'home';
           }
 
           return <MaterialIcons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#00A8A8',
+        tabBarActiveTintColor: '#006175',
         tabBarInactiveTintColor: '#A0A0A0',
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
@@ -74,7 +80,7 @@ const MainTabNavigator: React.FC = () => {
   );
 };
 
-const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initialRoute?: string }> = ({ onAuthSuccess, initialRoute = 'SignUp' }) => {
+const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initialRoute?: string }> = ({ onAuthSuccess, initialRoute = 'SignUp' }: { onAuthSuccess: (userData?: any) => void; initialRoute?: string }) => {
   const [currentEmail, setCurrentEmail] = useState('');
 
   return (
@@ -95,7 +101,7 @@ const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initial
           name="Login"
           options={{ headerShown: false }}
         >
-          {(props) => (
+          {(props: any) => (
             <LoginScreen
               onSignUp={() => props.navigation.navigate('SignUp')}
               onLogin={(credentials) => {
@@ -111,7 +117,7 @@ const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initial
           name="SignUp"
           options={{ headerShown: false }}
         >
-          {(props) => (
+          {(props: any) => (
             <SignUpScreen
               onSignIn={() => props.navigation.navigate('Login')}
               onSignUp={(userData) => {
@@ -131,7 +137,7 @@ const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initial
           name="ForgotPassword"
           options={{ headerShown: false }}
         >
-          {(props) => (
+          {(props: any) => (
             <ForgotPasswordScreen
               onSendOTP={(email) => {
                 setCurrentEmail(email);
@@ -146,7 +152,7 @@ const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initial
           name="OTP"
           options={{ headerShown: false }}
         >
-          {(props) => (
+          {(props: any) => (
             <OTPScreen
               email={currentEmail}
               onVerifyOTP={(otp) => {
@@ -164,7 +170,7 @@ const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initial
           name="ResetPassword"
           options={{ headerShown: false }}
         >
-          {(props) => (
+          {(props: any) => (
             <ResetPasswordScreen
               onResetPassword={(newPassword, confirmPassword) => {
                 console.log('Password reset successful');
@@ -182,14 +188,21 @@ const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initial
 const Stack = createStackNavigator();
 
 const AppNavigator: React.FC = () => {
+  console.log('AppNavigator rendering');
   const [showSplash, setShowSplash] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [userName, setUserName] = useState('');
-  // For demo purposes, we'll show the main app
-  // In a real app, this would check authentication status
-  const isAuthenticated = true;
+  const [authInitialRoute, setAuthInitialRoute] = useState<'SignUp' | 'Login'>('SignUp');
+  // Check authentication status with Supabase
+  const { user, loading } = useSupabaseAuth();
+  const isAuthenticated = !!user;
+
+  // Show loading screen while checking auth status
+  if (loading) {
+    return <SplashScreen onFinish={() => {}} />;
+  }
 
   if (showSplash) {
     return <SplashScreen onFinish={() => {
@@ -203,11 +216,13 @@ const AppNavigator: React.FC = () => {
       onFinish={() => {
         setShowOnboarding(false);
         setShowAuth(true);
+        setAuthInitialRoute('SignUp');
         // Default to SignUp screen after onboarding
       }}
       onSignIn={() => {
         setShowOnboarding(false);
         setShowAuth(true);
+        setAuthInitialRoute('Login');
         // Will show Login screen
       }}
     />;
@@ -227,7 +242,7 @@ const AppNavigator: React.FC = () => {
             setShowAuth(false);
           }
         }}
-        initialRoute="SignUp" // Default to SignUp after onboarding
+        initialRoute={authInitialRoute}
       />
     );
   }
@@ -259,11 +274,33 @@ const AppNavigator: React.FC = () => {
             options={{ headerShown: false }}
           />
         ) : (
-          <Stack.Screen
-            name="MainTabs"
-            component={MainTabNavigator}
-            options={{ headerShown: false }}
-          />
+          <>
+            <Stack.Screen
+              name="MainTabs"
+              component={MainTabNavigator}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PostDetail"
+              component={PostDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="UserProfile"
+              component={UserProfileScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Messages"
+              component={MessagesScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
+              options={{ headerShown: false }}
+            />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
