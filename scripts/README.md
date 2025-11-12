@@ -13,6 +13,32 @@ First, run the SQL script to create the necessary tables:
 
 Or copy and paste the contents of `scripts/create-tables.sql` into your Supabase SQL editor.
 
+## Storage Bucket Setup
+
+**IMPORTANT**: You must set up Storage buckets and RLS policies before uploading files. This fixes the "new row violates row-level security policy" error.
+
+Run the storage setup script:
+
+1. Open your Supabase dashboard
+2. Go to SQL Editor
+3. Copy and paste the contents of `scripts/create-storage-policies.sql`
+4. Run the script
+
+This will:
+- Create three storage buckets: `avatars`, `posts`, and `messages`
+- Set up Row Level Security (RLS) policies to allow authenticated users to upload files
+- Configure public read access for avatars and posts
+- Set file size limits and allowed MIME types
+
+### Troubleshooting Storage Upload Errors
+
+If you get a "new row violates row-level security policy" error:
+1. Make sure you've run `create-storage-policies.sql`
+2. Verify the buckets exist in your Supabase dashboard (Storage → Buckets)
+3. Check that RLS is enabled on the `storage.objects` table
+4. Verify your user is authenticated (check `auth.uid()` is not null)
+5. If policies already exist, you may need to drop them first (see comments in the SQL file)
+
 ## Database Seeding Script
 
 This script populates your Supabase database with sample data for the Framez social media app.

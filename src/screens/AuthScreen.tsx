@@ -8,7 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useAuth } from '../context/AuthContext';
+import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 
 const AuthScreen: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,8 +17,7 @@ const AuthScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { signIn, signUp } = useAuth();
-
+  const { signIn, signUp } = useSupabaseAuth();
   const handleAuth = async () => {
     if (!email || !password || (!isLogin && !name)) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -28,12 +27,16 @@ const AuthScreen: React.FC = () => {
     setLoading(true);
     try {
       if (isLogin) {
-        await signIn();
+        const result = await signIn(email, password);
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
       } else {
-        await signUp();
+        const result = await signUp(email, password, { name, username: '' }); // Username will be auto-generated from display name
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
       }
-      // For demo purposes, we'll simulate successful auth
-      // In a real app, this would be handled by the auth provider
     } catch (error) {
       Alert.alert('Error', error instanceof Error ? error.message : 'Authentication failed');
     } finally {

@@ -9,10 +9,10 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useAuth } from '../context/AuthContext';
+import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 
 const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { user, signOut } = useAuth();
+  const { user, signOut } = useSupabaseAuth();
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
 
@@ -42,27 +42,28 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     Alert.alert('Edit Profile', 'Edit profile functionality would be implemented here');
   };
 
-  const handleChangePassword = () => {
-    Alert.alert(
-      'Change Password',
-      'To change your password:\n\n1. Enter your current password\n2. Enter your new password\n3. Confirm your new password\n4. Password must be at least 8 characters long\n\nWould you like to proceed?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Change Password', style: 'default' }
-      ]
-    );
+  const handleChangePassword = async () => {
+    try {
+      // Sign out the user first
+      await signOut();
+
+      // Navigate to auth screen where they can use forgot password
+      navigation.navigate('Auth');
+
+      // Show instructions after a brief delay to ensure navigation completes
+      setTimeout(() => {
+        Alert.alert(
+          'Password Reset Required',
+          'You have been logged out. To change your password:\n\n1. On the login screen, tap "Forgot Password?"\n2. Enter your email address\n3. Check your email for reset instructions\n4. Follow the link to set a new password\n\nThis secure process ensures your account safety.',
+          [{ text: 'Got it', style: 'default' }]
+        );
+      }, 500);
+    } catch (error) {
+      console.error('Error during sign out:', error);
+      Alert.alert('Error', 'Failed to sign out. Please try again.');
+    }
   };
 
-  const handleUpdateEmail = () => {
-    Alert.alert(
-      'Update Email',
-      'To update your email address:\n\n1. Enter your new email address\n2. We\'ll send a verification code to your new email\n3. Enter the verification code to confirm\n\nYour current email will remain active until verification is complete.\n\nWould you like to proceed?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Update Email', style: 'default' }
-      ]
-    );
-  };
 
   const handlePrivacyPolicy = () => {
     Alert.alert(
@@ -158,11 +159,11 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <View style={styles.userSection}>
           <View style={styles.userAvatar}>
             <Text style={styles.userAvatarText}>
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+              {user?.user_metadata?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
             </Text>
           </View>
-          <Text style={styles.displayName}>{user?.name || 'User'}</Text>
-          <Text style={styles.username}>@{user?.name?.toLowerCase().replace(' ', '') || 'user'}</Text>
+          <Text style={styles.displayName}>{user?.user_metadata?.name || user?.email || 'User'}</Text>
+          <Text style={styles.username}>@{user?.user_metadata?.name?.toLowerCase().replace(' ', '') || user?.email?.split('@')[0] || 'user'}</Text>
           <TouchableOpacity style={styles.editProfileButton} onPress={handleEditProfile}>
             <Text style={styles.editProfileText}>Edit Profile</Text>
           </TouchableOpacity>
@@ -177,11 +178,6 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               icon="lock"
               title="Change Password"
               onPress={handleChangePassword}
-            />
-            <SettingItem
-              icon="email"
-              title="Update Email"
-              onPress={handleUpdateEmail}
             />
           </View>
 

@@ -32,21 +32,21 @@ const MainTabNavigator: React.FC = () => {
     <Tab.Navigator
       screenOptions={({ route }: { route: any }) => ({
         tabBarIcon: ({ focused, color, size }: { focused: boolean; color: string; size: number }) => {
-          let iconName: keyof typeof MaterialIcons.glyphMap;
+          let iconName: string;
 
           if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home';
+            iconName = 'home';
           } else if (route.name === 'Upload') {
-            iconName = focused ? 'add-circle' : 'add-circle-outline';
+            iconName = 'add-circle';
           } else if (route.name === 'Messages') {
-            iconName = focused ? 'chat' : 'chat';
+            iconName = 'chat';
           } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
+            iconName = 'person';
           } else {
             iconName = 'home';
           }
 
-          return <MaterialIcons name={iconName} size={size} color={color} />;
+          return <MaterialIcons name={iconName as any} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#006175',
         tabBarInactiveTintColor: '#A0A0A0',

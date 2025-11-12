@@ -13,14 +13,17 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
-import { supabase } from '../lib/supabase';
 import { createPostSchema, type CreatePostFormData } from '../lib/validations';
 import { uploadPostImage, validateFile } from '../lib/storage';
+import { useCreatePost } from '../lib/queries';
+import { addToUploadQueue } from '../lib/backgroundUpload';
+import FastImage from '../components/FastImage';
 
 
 
 const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useSupabaseAuth();
+  const createPostMutation = useCreatePost();
   const [formData, setFormData] = useState<CreatePostFormData>({
     content: '',
   });
@@ -79,41 +82,38 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setLoading(true);
     try {
       let imageUrls: string[] = [];
+      let createdPost: any = null;
 
-      // Upload image to Supabase Storage if provided
-      if (imageUri) {
-        // Validate file before upload
-        const validation = await validateFile(imageUri);
-        if (!validation.valid) {
-          Alert.alert('Error', validation.error);
-          setLoading(false);
-          return;
-        }
-
-        // Upload image
-        const uploadResult = await uploadPostImage(user.id, imageUri);
-        if (!uploadResult.success) {
-          Alert.alert('Error', 'Failed to upload image. Please try again.');
-          setLoading(false);
-          return;
-        }
-
-        imageUrls = [uploadResult.data?.publicUrl || ''];
-      }
-
-      const postData: any = {
-        user_id: user.id,
+      // Create the post first (without image initially)
+      createdPost = await createPostMutation.mutateAsync({
         content: formData.content.trim(),
-        visibility: 'public' as const,
-        image_urls: imageUrls.length > 0 ? imageUrls : null,
-      };
+        imageUrls: [],
+        visibility: 'public',
+      });
 
-      const { error } = await supabase.from('posts').insert(postData);
+      // If there's an image, queue it for background upload
+      if (imageUri && createdPost?.id) {
+        try {
+          // Validate file before queuing
+          const validation = await validateFile(imageUri);
+          if (!validation.valid) {
+            Alert.alert('Warning', `Post created but image upload failed: ${validation.error}`);
+          } else {
+            // Add to background upload queue
+            await addToUploadQueue({
+              id: `upload_${createdPost.id}_${Date.now()}`,
+              userId: user.id,
+              localUri: imageUri,
+              postId: createdPost.id,
+              timestamp: Date.now(),
+            });
 
-      if (error) {
-        console.error('Error creating post:', error);
-        Alert.alert('Error', 'Failed to create post. Please try again.');
-        return;
+            console.log('Image queued for background upload');
+          }
+        } catch (queueError) {
+          console.warn('Failed to queue image upload:', queueError);
+          Alert.alert('Warning', 'Post created but image may not upload properly');
+        }
       }
 
       Alert.alert('Success', 'Post created successfully!');
@@ -181,7 +181,7 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </TouchableOpacity>
         ) : (
           <View style={styles.imagePreviewContainer}>
-            <Image source={{ uri: imageUri }} style={styles.previewImage} />
+            <FastImage source={{ uri: imageUri }} style={styles.previewImage} />
             <TouchableOpacity style={styles.removeButton} onPress={removeImage}>
               <MaterialIcons name="close" size={20} color="#FFFFFF" />
             </TouchableOpacity>

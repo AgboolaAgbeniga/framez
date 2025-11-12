@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { initializeRealtimeSubscriptions, cleanupSubscriptions } from '../lib/realtime';
 
 interface AuthContextType {
   user: User | null;
@@ -26,26 +27,50 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
 
   useEffect(() => {
     console.log('SupabaseAuthProvider useEffect running');
+
+    let mounted = true;
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (mounted) {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      const previousUser = user;
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      // Handle real-time subscriptions
+      if (session?.user && !previousUser) {
+        // User logged in - initialize subscriptions
+        const newSubscriptions = initializeRealtimeSubscriptions(session.user.id);
+        setSubscriptions(newSubscriptions);
+      } else if (!session?.user && previousUser) {
+        // User logged out - cleanup subscriptions
+        cleanupSubscriptions(subscriptions);
+        setSubscriptions([]);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      cleanupSubscriptions(subscriptions);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -57,13 +82,16 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
 
   const signUp = async (email: string, password: string, userData: { name: string; username: string }) => {
+    // Generate username from display name if not provided
+    const username = userData.username || userData.name.toLowerCase().replace(/\s+/g, '');
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           name: userData.name,
-          username: userData.username,
+          username: username,
         },
       },
     });
@@ -80,7 +108,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         .from('profiles')
         .insert({
           id: data.user.id,
-          username: userData.username,
+          username: username,
           display_name: userData.name,
           email: email,
           avatar_url: avatarUrl,

@@ -173,8 +173,12 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
   const handleMessagePress = () => {
     console.log('Message button pressed for user:', userId, profile?.display_name);
     if (!user?.id || isOwnProfile) return;
-    // Navigate to messages with this user
-    navigation.navigate('Messages', { userId, userName: profile?.display_name });
+    // Navigate to messages with this user, indicating we came from profile
+    navigation.navigate('Messages', {
+      userId,
+      userName: profile?.display_name,
+      fromProfile: true
+    });
   };
 
   const renderGridItem = ({ item }: { item: Post }) => (

@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   TextInput,
-  Image,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -15,10 +14,12 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import type { PanGestureHandlerGestureEvent, PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
-import { Message } from '../types';
+import { useConversations, useChatMessages, useSendMessage } from '../lib/queries';
+import FastImage from '../components/FastImage';
 
 interface Conversation {
   id: string;
@@ -40,18 +41,41 @@ interface ChatMessage {
 const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const { user } = useSupabaseAuth();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [searchText, setSearchText] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  const [loading, setLoading] = useState(true);
   const flatListRef = useRef<FlatList>(null);
+
+  // React Query hooks
+  const { data: conversations = [], isLoading: loading } = useConversations(user?.id);
+  const { data: chatMessages = [] } = useChatMessages(selectedChat || '', user?.id || '');
+  const sendMessageMutation = useSendMessage();
+
+  // Gesture handling for swipe down to go back
+  const handleGesture = (event: PanGestureHandlerGestureEvent) => {
+    // Gesture logic will be handled in onHandlerStateChange
+  };
+
+  const handleGestureStateChange = (event: PanGestureHandlerStateChangeEvent) => {
+    const { translationY, state } = event.nativeEvent;
+
+    if (state === State.END && translationY > 100) {
+      // Swipe down detected (more than 100 pixels)
+      if (fromProfile && directUserId) {
+        // Navigate back to the user's profile
+        navigation.navigate('UserProfile', { userId: directUserId });
+      } else {
+        // Normal back to conversations list
+        setSelectedChat(null);
+      }
+    }
+  };
 
   // Check if navigating from profile to start a new conversation
   const directUserId = route?.params?.userId;
   const directUserName = route?.params?.userName;
+  const fromProfile = route?.params?.fromProfile || false;
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -76,139 +100,20 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
     };
   }, []);
 
-  // Fetch conversations
-  useEffect(() => {
-    if (user?.id) {
-      fetchConversations();
-    }
-  }, [user]);
-
   // Handle direct messaging from profile
   useEffect(() => {
-    if (directUserId && directUserName && user?.id) {
+    if (directUserId && directUserName && user?.id && conversations.length > 0) {
       // Check if conversation already exists
       const existingConversation = conversations.find(conv => conv.otherUserId === directUserId);
       if (existingConversation) {
         setSelectedChat(existingConversation.id);
-        fetchChatMessages(directUserId);
       } else {
         // Start new conversation with direct user info
         setSelectedChat(directUserId);
-        setChatMessages([]);
       }
     }
-  }, [directUserId, directUserName, conversations]);
+  }, [directUserId, directUserName, conversations, user?.id]);
 
-  const fetchConversations = async () => {
-    try {
-      setLoading(true);
-
-      // Fetch messages where user is sender or receiver
-      const { data: sentMessages, error: sentError } = await supabase
-        .from('messages')
-        .select(`
-          id,
-          content,
-          timestamp,
-          receiver_id,
-          profiles!messages_receiver_id_fkey (
-            id,
-            display_name,
-            avatar_url
-          )
-        `)
-        .eq('sender_id', user!.id)
-        .order('timestamp', { ascending: false });
-
-      const { data: receivedMessages, error: receivedError } = await supabase
-        .from('messages')
-        .select(`
-          id,
-          content,
-          timestamp,
-          sender_id,
-          profiles!messages_sender_id_fkey (
-            id,
-            display_name,
-            avatar_url
-          )
-        `)
-        .eq('receiver_id', user!.id)
-        .order('timestamp', { ascending: false });
-
-      if (sentError || receivedError) {
-        console.error('Error fetching messages:', sentError || receivedError);
-        return;
-      }
-
-      // Combine and group by conversation
-      const allMessages = [
-        ...(sentMessages || []).map(msg => ({ ...msg, isSent: true })),
-        ...(receivedMessages || []).map(msg => ({ ...msg, isSent: false })),
-      ];
-
-      const conversationMap = new Map<string, Conversation>();
-
-      allMessages.forEach((msg: any) => {
-        const otherUserId = msg.isSent ? msg.receiver_id : msg.sender_id;
-        const otherUser = msg.isSent ? msg.profiles : msg.profiles;
-        const conversationId = [user!.id, otherUserId].sort().join('_');
-
-        if (!conversationMap.has(conversationId)) {
-          conversationMap.set(conversationId, {
-            id: conversationId,
-            otherUserId,
-            otherUserName: otherUser?.display_name || 'Unknown User',
-            otherUserAvatar: otherUser?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
-            lastMessage: msg.content,
-            timestamp: msg.timestamp,
-            unread: !msg.isSent && !msg.is_read, // Assuming is_read field exists
-          });
-        }
-      });
-
-      setConversations(Array.from(conversationMap.values()));
-    } catch (error) {
-      console.error('Error fetching conversations:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchChatMessages = async (otherUserId: string) => {
-    try {
-      // Fetch messages between current user and other user
-      const { data: messages, error } = await supabase
-        .from('messages')
-        .select(`
-          id,
-          content,
-          timestamp,
-          sender_id
-        `)
-        .or(`and(sender_id.eq.${user!.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user!.id})`)
-        .order('timestamp', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching chat messages:', error);
-        return;
-      }
-
-      const transformedMessages: ChatMessage[] = (messages || []).map((msg: any) => ({
-        id: msg.id,
-        text: msg.content,
-        isSender: msg.sender_id === user!.id,
-        timestamp: new Date(msg.timestamp).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-      }));
-
-      setChatMessages(transformedMessages);
-    } catch (error) {
-      console.error('Error fetching chat messages:', error);
-    }
-  };
 
   const selectedChatData = conversations.find(chat => chat.id === selectedChat) || (directUserId && directUserName ? {
     id: directUserId,
@@ -225,10 +130,9 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
       style={styles.messageItem}
       onPress={() => {
         setSelectedChat(item.id);
-        fetchChatMessages(item.otherUserId);
       }}
     >
-      <Image source={{ uri: item.otherUserAvatar }} style={styles.avatar} />
+      <FastImage source={{ uri: item.otherUserAvatar }} style={styles.avatar} />
       <View style={styles.messageContent}>
         <View style={styles.messageHeader}>
           <Text style={styles.senderName}>{item.otherUserName}</Text>
@@ -272,36 +176,14 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
 
       if (!otherUserId) return;
 
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          sender_id: user.id,
-          receiver_id: otherUserId,
-          content: newMessage.trim(),
-        });
+      // Use React Query mutation
+      await sendMessageMutation.mutateAsync({
+        senderId: user.id,
+        receiverId: otherUserId,
+        content: newMessage.trim(),
+      });
 
-      if (error) {
-        console.error('Error sending message:', error);
-        Alert.alert('Error', 'Failed to send message. Please try again.');
-        return;
-      }
-
-      // Add message to local state
-      const newChatMessage: ChatMessage = {
-        id: Date.now().toString(), // Temporary ID
-        text: newMessage.trim(),
-        isSender: true,
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-      };
-
-      setChatMessages(prev => [...prev, newChatMessage]);
       setNewMessage('');
-
-      // Refresh conversations to update last message
-      fetchConversations();
     } catch (error) {
       console.error('Error sending message:', error);
       Alert.alert('Error', 'Failed to send message. Please try again.');
@@ -314,56 +196,64 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
     const availableHeight = screenHeight - keyboardHeight - inputContainerHeight - 100; // 100 for header
 
     return (
-      <View style={styles.container}>
-        {/* Chat Header */}
-        <View style={styles.chatHeader}>
-          <TouchableOpacity onPress={() => setSelectedChat(null)} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#000000" />
-          </TouchableOpacity>
-          <Image source={{ uri: selectedChatData?.otherUserAvatar }} style={styles.chatAvatar} />
-          <Text style={styles.chatUserName}>{selectedChatData?.otherUserName}</Text>
-        </View>
+      <PanGestureHandler
+        onGestureEvent={handleGesture}
+        onHandlerStateChange={handleGestureStateChange}
+      >
+        <View style={styles.container}>
+          {/* Chat Header */}
+          <View style={styles.chatHeader}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.backButton}
+            >
+              <MaterialIcons name="arrow-back" size={24} color="#000000" />
+            </TouchableOpacity>
+            <FastImage source={{ uri: selectedChatData?.otherUserAvatar }} style={styles.chatAvatar} />
+            <Text style={styles.chatUserName}>{selectedChatData?.otherUserName}</Text>
+          </View>
 
-        {/* Messages */}
-        <View style={[styles.messagesContainer, { height: availableHeight }]}>
-          <FlatList
-            ref={flatListRef}
-            data={chatMessages}
-            renderItem={renderChatMessage}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.chatContainer}
-            showsVerticalScrollIndicator={false}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-            onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          />
-        </View>
+          {/* Messages */}
+          <View style={[styles.messagesContainer, { height: availableHeight }]}>
+            <FlatList
+              ref={flatListRef}
+              data={chatMessages}
+              renderItem={renderChatMessage}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.chatContainer}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            />
+          </View>
 
-        {/* Message Input - Positioned absolutely above keyboard */}
-        <View style={[
-          styles.messageInputContainer,
-          {
-            position: 'absolute',
-            bottom: keyboardHeight || 0,
-            left: 0,
-            right: 0,
-          }
-        ]}>
-          <TouchableOpacity style={styles.attachmentButton}>
-            <MaterialIcons name="attach-file" size={24} color="#8E8E93" />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.messageInput}
-            placeholder="Type a message..."
-            value={newMessage}
-            onChangeText={setNewMessage}
-            multiline
-            maxLength={1000}
-          />
-          <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-            <MaterialIcons name="send" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          {/* Message Input - Positioned absolutely above keyboard */}
+          <View style={[
+            styles.messageInputContainer,
+            {
+              position: 'absolute',
+              bottom: keyboardHeight || 0,
+              left: 0,
+              right: 0,
+            }
+          ]}>
+            <TouchableOpacity style={styles.attachmentButton}>
+              <MaterialIcons name="attach-file" size={24} color="#8E8E93" />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.messageInput}
+              placeholder="Type a message..."
+              value={newMessage}
+              onChangeText={setNewMessage}
+              multiline
+              maxLength={1000}
+            />
+            <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
+              <MaterialIcons name="send" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </PanGestureHandler>
     );
   }
 

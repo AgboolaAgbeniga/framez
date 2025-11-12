@@ -98,8 +98,8 @@ export const deleteFile = async (bucket: string, path: string) => {
  * @returns Promise with upload result
  */
 export const uploadAvatar = async (userId: string, fileUri: string) => {
-  const fileName = `${userId}_${Date.now()}.jpg`;
-  const path = `avatars/${fileName}`;
+  const fileName = `${Date.now()}.jpg`;
+  const path = `${userId}/${fileName}`;
 
   const result = await uploadFile(STORAGE_BUCKETS.AVATARS, path, fileUri, {
     contentType: 'image/jpeg',
@@ -128,8 +128,8 @@ export const uploadAvatar = async (userId: string, fileUri: string) => {
  * @returns Promise with upload result
  */
 export const uploadPostImage = async (userId: string, fileUri: string) => {
-  const fileName = `${userId}_${Date.now()}.jpg`;
-  const path = `posts/${fileName}`;
+  const fileName = `${Date.now()}.jpg`;
+  const path = `${userId}/${fileName}`;
 
   return await uploadFile(STORAGE_BUCKETS.POSTS, path, fileUri, {
     contentType: 'image/jpeg',
@@ -151,8 +151,8 @@ export const uploadMessageAttachment = async (
   fileType: 'image' | 'video' | 'file' = 'image'
 ) => {
   const extension = fileType === 'image' ? 'jpg' : fileType === 'video' ? 'mp4' : 'file';
-  const fileName = `${conversationId}_${userId}_${Date.now()}.${extension}`;
-  const path = `messages/${fileName}`;
+  const fileName = `${conversationId}_${Date.now()}.${extension}`;
+  const path = `${userId}/${fileName}`;
 
   const contentType = fileType === 'image' ? 'image/jpeg' :
                      fileType === 'video' ? 'video/mp4' :

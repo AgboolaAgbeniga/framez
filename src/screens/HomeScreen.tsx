@@ -1,109 +1,48 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   StyleSheet,
   TouchableOpacity,
-  Image,
   ScrollView,
   Dimensions,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
+import { usePosts, useLikePost } from '../lib/queries';
 import { Post } from '../types';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import FastImage from '../components/FastImage';
 
 const { width } = Dimensions.get('window');
+
+// Helper function to format time ago
+const formatTimeAgo = (timestamp: number): string => {
+  const now = Date.now();
+  const diff = now - timestamp;
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
+  const months = Math.floor(days / 30);
+
+  if (seconds < 60) return `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
+  if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+  if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+  if (days < 7) return `${days} day${days !== 1 ? 's' : ''} ago`;
+  if (weeks < 4) return `${weeks} week${weeks !== 1 ? 's' : ''} ago`;
+  return `${months} month${months !== 1 ? 's' : ''} ago`;
+};
 
 const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useSupabaseAuth();
   const [searchText, setSearchText] = useState('');
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Fetch posts from Supabase
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        setLoading(true);
-
-        // Fetch posts with user profile data
-        const { data, error } = await supabase
-          .from('posts')
-          .select(`
-            id,
-            content,
-            image_urls,
-            location,
-            visibility,
-            created_at,
-            user_id,
-            profiles:user_id (
-              id,
-              display_name,
-              username,
-              avatar_url
-            )
-          `)
-          .eq('visibility', 'public')
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (error) {
-          console.error('Error fetching posts:', error);
-          return;
-        }
-
-        // Get likes and comments counts for each post
-        const postsWithCounts = await Promise.all(
-          data.map(async (post: any) => {
-            const [likesResult, commentsResult, userLikeResult] = await Promise.all([
-              supabase
-                .from('likes')
-                .select('id', { count: 'exact' })
-                .eq('post_id', post.id),
-              supabase
-                .from('comments')
-                .select('id', { count: 'exact' })
-                .eq('post_id', post.id),
-              user?.id ? supabase
-                .from('likes')
-                .select('id')
-                .eq('post_id', post.id)
-                .eq('user_id', user.id)
-                .single() : Promise.resolve({ data: null }),
-            ]);
-
-            return {
-              _id: post.id,
-              userId: post.user_id,
-              content: post.content,
-              imageUrl: post.image_urls?.[0] || null,
-              timestamp: new Date(post.created_at).getTime(),
-              user: {
-                name: post.profiles?.display_name || 'Unknown User',
-                avatarUrl: post.profiles?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
-              },
-              likesCount: likesResult.count || 0,
-              commentsCount: commentsResult.count || 0,
-              isLiked: !!userLikeResult.data,
-            };
-          })
-        );
-
-        setPosts(postsWithCounts);
-      } catch (error) {
-        console.error('Error fetching posts:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPosts();
-  }, []);
+  const { data: posts = [], isLoading: loading, error } = usePosts();
+  const likePostMutation = useLikePost();
 
   // Mock stories data
   const stories = [
@@ -116,7 +55,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const renderStory = ({ item }: { item: any }) => (
     <TouchableOpacity style={styles.storyItem}>
-      <Image source={{ uri: item.avatar }} style={styles.storyAvatar} />
+      <FastImage source={{ uri: item.avatar }} style={styles.storyAvatar} />
       <Text style={styles.storyName} numberOfLines={1}>
         {item.name}
       </Text>
@@ -130,95 +69,10 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     }
 
     try {
-      // Check if user already liked this post
-      const { data: existingLike } = await supabase
-        .from('likes')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('post_id', postId)
-        .single();
-
-      if (existingLike) {
-        // Unlike the post
-        await supabase
-          .from('likes')
-          .delete()
-          .eq('id', existingLike.id);
-      } else {
-        // Like the post
-        await supabase
-          .from('likes')
-          .insert({
-            user_id: user.id,
-            post_id: postId,
-          });
-      }
-
-      // Refresh posts to update like counts
-      // Re-fetch posts to update like counts
-      const { data, error } = await supabase
-        .from('posts')
-        .select(`
-          id,
-          content,
-          image_urls,
-          location,
-          visibility,
-          created_at,
-          user_id,
-          profiles:user_id (
-            id,
-            display_name,
-            username,
-            avatar_url
-          )
-        `)
-        .eq('visibility', 'public')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (!error && data) {
-        // Get likes and comments counts for each post
-        const postsWithCounts = await Promise.all(
-          data.map(async (post: any) => {
-            const [likesResult, commentsResult, userLikeResult] = await Promise.all([
-              supabase
-                .from('likes')
-                .select('id', { count: 'exact' })
-                .eq('post_id', post.id),
-              supabase
-                .from('comments')
-                .select('id', { count: 'exact' })
-                .eq('post_id', post.id),
-              user?.id ? supabase
-                .from('likes')
-                .select('id')
-                .eq('post_id', post.id)
-                .eq('user_id', user.id)
-                .single() : Promise.resolve({ data: null }),
-            ]);
-
-            return {
-              _id: post.id,
-              userId: post.user_id,
-              content: post.content,
-              imageUrl: post.image_urls?.[0] || null,
-              timestamp: new Date(post.created_at).getTime(),
-              user: {
-                name: post.profiles?.display_name || 'Unknown User',
-                avatarUrl: post.profiles?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
-              },
-              likesCount: likesResult.count || 0,
-              commentsCount: commentsResult.count || 0,
-              isLiked: !!userLikeResult.data,
-            };
-          })
-        );
-
-        setPosts(postsWithCounts);
-      }
+      await likePostMutation.mutateAsync({ postId, userId: user.id });
     } catch (error) {
       console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to like/unlike post');
     }
   };
 
@@ -235,7 +89,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
         <TouchableOpacity onPress={() => handleUserPress(item.userId)}>
-          <Image
+          <FastImage
             source={{
               uri: item.user?.avatarUrl || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
             }}
@@ -247,10 +101,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <Text style={styles.postUsername}>{item.user?.name || 'Unknown'}</Text>
           </TouchableOpacity>
           <Text style={styles.postTimestamp}>
-            {new Date(item.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
+            {formatTimeAgo(item.timestamp)}
           </Text>
         </View>
       </View>
@@ -258,7 +109,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <Text style={styles.postContent}>{item.content}</Text>
 
       {item.imageUrl && (
-        <Image source={{ uri: item.imageUrl }} style={styles.postImage} />
+        <FastImage source={{ uri: item.imageUrl }} style={styles.postImage} />
       )}
 
       <View style={styles.postActions}>
@@ -290,59 +141,59 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Framez</Text>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.headerIcon}>
-            <MaterialIcons name="search" size={24} color="#000000" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerIcon}>
-            <MaterialIcons name="notifications-none" size={24} color="#000000" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Fixed Stories Section */}
-      <View style={styles.storiesContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.storiesScroll}
-        >
-          {stories.map((story) => (
-            <TouchableOpacity key={story.id} style={styles.storyItem}>
-              <Image source={{ uri: story.avatar }} style={styles.storyAvatar} />
-              <Text style={styles.storyName} numberOfLines={1}>
-                {story.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Posts Feed */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#006175" />
-          <Text style={styles.loadingText}>Loading posts...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={posts}
-          renderItem={renderPost}
-          keyExtractor={(item) => item._id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.feedContainer}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No posts yet. Be the first to share something!</Text>
+    <FlatList
+      data={posts}
+      renderItem={renderPost}
+      keyExtractor={(item) => item._id}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.feedContainer}
+      ListEmptyComponent={
+        loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#006175" />
+            <Text style={styles.loadingText}>Loading posts...</Text>
+          </View>
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No posts yet. Be the first to share something!</Text>
+          </View>
+        )
+      }
+      ListHeaderComponent={
+        <View>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Framez</Text>
+            <View style={styles.headerIcons}>
+              <TouchableOpacity style={styles.headerIcon}>
+                <MaterialIcons name="search" size={24} color="#000000" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerIcon}>
+                <MaterialIcons name="notifications-none" size={24} color="#000000" />
+              </TouchableOpacity>
             </View>
-          }
-        />
-      )}
-    </View>
+          </View>
+
+          {/* Fixed Stories Section */}
+          <View style={styles.storiesContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.storiesScroll}
+            >
+              {stories.map((story) => (
+                <TouchableOpacity key={story.id} style={styles.storyItem}>
+                  <FastImage source={{ uri: story.avatar }} style={styles.storyAvatar} />
+                  <Text style={styles.storyName} numberOfLines={1}>
+                    {story.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      }
+    />
   );
 };
 
