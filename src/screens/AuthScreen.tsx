@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { typography, borderRadius, spacing } from '../lib/theme';
 
 const AuthScreen: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,6 +20,61 @@ const AuthScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const { signIn, signUp } = useSupabaseAuth();
+  const { colors } = useTheme();
+
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+      backgroundColor: colors.background,
+    },
+    title: {
+      ...typography.headline,
+      textAlign: 'center',
+      marginBottom: spacing.sm,
+      color: colors.textPrimary,
+    },
+    subtitle: {
+      ...typography.subtitle,
+      textAlign: 'center',
+      marginBottom: spacing.xxxl,
+      color: colors.textSecondary,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: borderRadius.medium,
+      padding: spacing.lg,
+      marginBottom: spacing.lg,
+      fontSize: 16,
+      backgroundColor: colors.inputBackground,
+      color: colors.textPrimary,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.medium,
+      padding: spacing.lg,
+      alignItems: 'center',
+      marginBottom: spacing.lg,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    buttonText: {
+      ...typography.button,
+      color: '#FFFFFF',
+    },
+    switchButton: {
+      alignItems: 'center',
+    },
+    switchText: {
+      ...typography.body,
+      color: colors.primary,
+      fontSize: 16,
+    },
+  });
   const handleAuth = async () => {
     if (!email || !password || (!isLogin && !name)) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -46,16 +103,17 @@ const AuthScreen: React.FC = () => {
 
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Framez</Text>
-      <Text style={styles.subtitle}>
+    <View style={dynamicStyles.container}>
+      <Text style={dynamicStyles.title}>Framez</Text>
+      <Text style={dynamicStyles.subtitle}>
         {isLogin ? 'Welcome back!' : 'Join the community'}
       </Text>
 
       {!isLogin && (
         <TextInput
-          style={styles.input}
+          style={dynamicStyles.input}
           placeholder="Full Name"
+          placeholderTextColor={colors.inputPlaceholder}
           value={name}
           onChangeText={setName}
           autoCapitalize="words"
@@ -63,8 +121,9 @@ const AuthScreen: React.FC = () => {
       )}
 
       <TextInput
-        style={styles.input}
+        style={dynamicStyles.input}
         placeholder="Email"
+        placeholderTextColor={colors.inputPlaceholder}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
@@ -72,32 +131,33 @@ const AuthScreen: React.FC = () => {
       />
 
       <TextInput
-        style={styles.input}
+        style={dynamicStyles.input}
         placeholder="Password"
+        placeholderTextColor={colors.inputPlaceholder}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
       />
 
       <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
+        style={[dynamicStyles.button, loading && dynamicStyles.buttonDisabled]}
         onPress={handleAuth}
         disabled={loading}
       >
         {loading ? (
-          <ActivityIndicator color="white" />
+          <ActivityIndicator color="#FFFFFF" />
         ) : (
-          <Text style={styles.buttonText}>
+          <Text style={dynamicStyles.buttonText}>
             {isLogin ? 'Sign In' : 'Sign Up'}
           </Text>
         )}
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={styles.switchButton}
+        style={dynamicStyles.switchButton}
         onPress={() => setIsLogin(!isLogin)}
       >
-        <Text style={styles.switchText}>
+        <Text style={dynamicStyles.switchText}>
           {isLogin
             ? "Don't have an account? Sign Up"
             : 'Already have an account? Sign In'}
@@ -107,61 +167,5 @@ const AuthScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#fff',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 10,
-    color: '#333',
-  },
-  subtitle: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 30,
-    color: '#666',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 15,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  switchButton: {
-    alignItems: 'center',
-  },
-  switchText: {
-    color: '#007AFF',
-    fontSize: 16,
-  },
-});
 
 export default AuthScreen;

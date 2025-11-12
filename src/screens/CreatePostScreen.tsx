@@ -13,6 +13,8 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { typography, borderRadius, spacing } from '../lib/theme';
 import { createPostSchema, type CreatePostFormData } from '../lib/validations';
 import { uploadPostImage, validateFile } from '../lib/storage';
 import { useCreatePost } from '../lib/queries';
@@ -23,6 +25,7 @@ import FastImage from '../components/FastImage';
 
 const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useSupabaseAuth();
+  const { colors } = useTheme();
   const createPostMutation = useCreatePost();
   const [formData, setFormData] = useState<CreatePostFormData>({
     content: '',
@@ -30,6 +33,163 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [errors, setErrors] = useState<Partial<CreatePostFormData>>({});
   const [loading, setLoading] = useState(false);
+
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 50,
+      paddingHorizontal: 20,
+      paddingBottom: 15,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    headerIcon: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      ...typography.body,
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.textPrimary,
+    },
+    scrollContainer: {
+      flex: 1,
+      paddingHorizontal: 20,
+    },
+    userInfoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 20,
+      marginBottom: 20,
+    },
+    userAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      marginRight: 12,
+    },
+    userInfo: {
+      flex: 1,
+    },
+    username: {
+      ...typography.body,
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    userSubtext: {
+      ...typography.caption,
+      color: colors.textSecondary,
+    },
+    textInput: {
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: borderRadius.medium,
+      padding: spacing.lg,
+      fontSize: 14,
+      marginBottom: 20,
+      textAlignVertical: 'top',
+      minHeight: 120,
+      backgroundColor: colors.inputBackground,
+      color: colors.textPrimary,
+    },
+    uploadArea: {
+      borderWidth: 2,
+      borderColor: colors.inputBorder,
+      borderStyle: 'dashed',
+      borderRadius: borderRadius.medium,
+      padding: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 20,
+      backgroundColor: colors.surface,
+    },
+    uploadText: {
+      ...typography.body,
+      color: colors.textSecondary,
+      marginTop: 10,
+    },
+    imagePreviewContainer: {
+      position: 'relative',
+      marginBottom: 20,
+    },
+    previewImage: {
+      width: '100%',
+      height: 250,
+      borderRadius: borderRadius.medium,
+    },
+    removeButton: {
+      position: 'absolute',
+      top: 10,
+      right: 10,
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      borderRadius: 15,
+      width: 30,
+      height: 30,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    actionButtonsContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 15,
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.divider,
+      paddingBottom: 30, // Account for bottom safe area
+    },
+    cancelButton: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: borderRadius.medium,
+      padding: spacing.lg,
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    cancelButtonText: {
+      ...typography.button,
+      color: colors.textSecondary,
+    },
+    postButton: {
+      flex: 1,
+      backgroundColor: colors.primary,
+      borderRadius: borderRadius.medium,
+      padding: spacing.lg,
+      alignItems: 'center',
+      marginLeft: 10,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    postButtonText: {
+      ...typography.button,
+      color: '#FFFFFF',
+    },
+    inputError: {
+      borderColor: colors.error,
+      borderWidth: 1,
+    },
+    errorText: {
+      ...typography.caption,
+      color: colors.error,
+      marginTop: 4,
+      marginBottom: 8,
+    },
+  });
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -133,35 +293,36 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={dynamicStyles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIcon}>
-          <MaterialIcons name="arrow-back" size={24} color="#000000" />
+      <View style={dynamicStyles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={dynamicStyles.headerIcon}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create Post</Text>
-        <View style={styles.headerIcon} />
+        <Text style={dynamicStyles.headerTitle}>Create Post</Text>
+        <View style={dynamicStyles.headerIcon} />
       </View>
 
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView style={dynamicStyles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* User Info Row */}
-        <View style={styles.userInfoRow}>
+        <View style={dynamicStyles.userInfoRow}>
           <Image
             source={{
               uri: 'https://avatar.iran.liara.run/public/boy', // TODO: Get from profile
             }}
-            style={styles.userAvatar}
+            style={dynamicStyles.userAvatar}
           />
-          <View style={styles.userInfo}>
-            <Text style={styles.username}>{user?.user_metadata?.name || 'Demo User'}</Text>
-            <Text style={styles.userSubtext}>What's on your mind?</Text>
+          <View style={dynamicStyles.userInfo}>
+            <Text style={dynamicStyles.username}>{user?.user_metadata?.name || 'Demo User'}</Text>
+            <Text style={dynamicStyles.userSubtext}>What's on your mind?</Text>
           </View>
         </View>
 
         {/* Post Input Area */}
         <TextInput
-          style={[styles.textInput, errors.content && styles.inputError]}
+          style={[dynamicStyles.textInput, errors.content && dynamicStyles.inputError]}
           placeholder="Write a caption..."
+          placeholderTextColor={colors.inputPlaceholder}
           value={formData.content}
           onChangeText={(value) => {
             setFormData(prev => ({ ...prev, content: value }));
@@ -171,18 +332,18 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           numberOfLines={6}
           textAlignVertical="top"
         />
-        {errors.content && <Text style={styles.errorText}>{errors.content}</Text>}
+        {errors.content && <Text style={dynamicStyles.errorText}>{errors.content}</Text>}
 
         {/* Media Upload Area */}
         {!imageUri ? (
-          <TouchableOpacity style={styles.uploadArea} onPress={pickImage}>
-            <MaterialIcons name="photo-camera" size={48} color="#8E8E93" />
-            <Text style={styles.uploadText}>Tap to upload media</Text>
+          <TouchableOpacity style={dynamicStyles.uploadArea} onPress={pickImage}>
+            <MaterialIcons name="photo-camera" size={48} color={colors.textSecondary} />
+            <Text style={dynamicStyles.uploadText}>Tap to upload media</Text>
           </TouchableOpacity>
         ) : (
-          <View style={styles.imagePreviewContainer}>
-            <FastImage source={{ uri: imageUri }} style={styles.previewImage} />
-            <TouchableOpacity style={styles.removeButton} onPress={removeImage}>
+          <View style={dynamicStyles.imagePreviewContainer}>
+            <FastImage source={{ uri: imageUri }} style={dynamicStyles.previewImage} />
+            <TouchableOpacity style={dynamicStyles.removeButton} onPress={removeImage}>
               <MaterialIcons name="close" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -190,194 +351,27 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       </ScrollView>
 
       {/* Action Buttons */}
-      <View style={styles.actionButtonsContainer}>
-        <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+      <View style={dynamicStyles.actionButtonsContainer}>
+        <TouchableOpacity style={dynamicStyles.cancelButton} onPress={handleCancel}>
+          <Text style={dynamicStyles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.postButton, loading && styles.buttonDisabled]}
+          style={[dynamicStyles.postButton, loading && dynamicStyles.buttonDisabled]}
           onPress={handleCreatePost}
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.postButtonText}>Post</Text>
+            <Text style={dynamicStyles.postButtonText}>Post</Text>
           )}
         </TouchableOpacity>
       </View>
 
-      
+
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  scrollContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  userInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  username: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#000000',
-    marginBottom: 2,
-  },
-  userSubtext: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 12,
-    padding: 15,
-    fontSize: 14,
-    marginBottom: 20,
-    textAlignVertical: 'top',
-    minHeight: 120,
-  },
-  uploadArea: {
-    borderWidth: 2,
-    borderColor: '#E5E5EA',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    backgroundColor: '#F9F9F9',
-  },
-  uploadText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 10,
-  },
-  imagePreviewContainer: {
-    position: 'relative',
-    marginBottom: 20,
-  },
-  previewImage: {
-    width: '100%',
-    height: 250,
-    borderRadius: 12,
-  },
-  removeButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    paddingBottom: 30, // Account for bottom safe area
-  },
-  cancelButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  cancelButtonText: {
-    color: '#8E8E93',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  postButton: {
-    flex: 1,
-    backgroundColor: '#006175',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  postButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    paddingBottom: 25, // Account for safe area
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inputError: {
-    borderColor: '#FF3B30',
-    borderWidth: 1,
-  },
-  errorText: {
-    color: '#FF3B30',
-    fontSize: 12,
-    marginTop: 4,
-    marginBottom: 8,
-  },
-});
 
 export default CreatePostScreen;
