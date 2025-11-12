@@ -181,36 +181,82 @@ export type Database = {
           created_at?: string;
         };
       };
+      conversations: {
+        Row: {
+          id: string;
+          user_a_id: string;
+          user_b_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_a_id: string;
+          user_b_id: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_a_id?: string;
+          user_b_id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      message_reads: {
+        Row: {
+          message_id: string;
+          reader_id: string;
+          read_at: string;
+        };
+        Insert: {
+          message_id: string;
+          reader_id: string;
+          read_at?: string;
+        };
+        Update: {
+          message_id?: string;
+          reader_id?: string;
+          read_at?: string;
+        };
+      };
       messages: {
         Row: {
           id: string;
           conversation_id: string;
           sender_id: string;
-          content: string | null;
-          message_type: 'text' | 'image' | 'video' | 'file';
-          file_url: string | null;
+          content: string;
           reply_to_message_id: string | null;
           created_at: string;
+          receiver_id: string | null;
+          is_read: boolean | null;
+          is_deleted: boolean | null;
+          is_edited: boolean | null;
         };
         Insert: {
           id?: string;
           conversation_id: string;
           sender_id: string;
-          content?: string | null;
-          message_type?: 'text' | 'image' | 'video' | 'file';
-          file_url?: string | null;
+          content: string;
           reply_to_message_id?: string | null;
           created_at?: string;
+          receiver_id?: string | null;
+          is_read?: boolean | null;
+          is_deleted?: boolean | null;
+          is_edited?: boolean | null;
         };
         Update: {
           id?: string;
           conversation_id?: string;
           sender_id?: string;
-          content?: string | null;
-          message_type?: 'text' | 'image' | 'video' | 'file';
-          file_url?: string | null;
+          content?: string;
           reply_to_message_id?: string | null;
           created_at?: string;
+          receiver_id?: string | null;
+          is_read?: boolean | null;
+          is_deleted?: boolean | null;
+          is_edited?: boolean | null;
         };
       };
       notifications: {
