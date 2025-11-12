@@ -13,13 +13,14 @@ import {
   Dimensions,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import type { PanGestureHandlerGestureEvent, PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { useConversations, useChatMessages, useSendMessage } from '../lib/queries';
+import { useConversations, useChatMessages, useSendMessage, useMarkMessagesAsRead } from '../lib/queries';
 import { typography, borderRadius, spacing } from '../lib/theme';
 import FastImage from '../components/FastImage';
 
@@ -31,6 +32,7 @@ interface Conversation {
   lastMessage: string;
   timestamp: number;
   unread: boolean;
+  unreadCount?: number;
 }
 
 interface ChatMessage {
@@ -148,10 +150,13 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
       color: colors.textPrimary,
     },
     unreadDot: {
-      width: 8,
+      minWidth: 8,
       height: 8,
       borderRadius: 4,
       backgroundColor: colors.error,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 2,
     },
     chatHeader: {
       flexDirection: 'row',
@@ -250,9 +255,7 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
       alignItems: 'center',
       marginLeft: spacing.sm,
     },
-    messagesContainer: {
-      flex: 1,
-    },
+    // Removed messagesContainer style as we're now using FlatList directly
     loadingContainer: {
       flex: 1,
       justifyContent: 'center',
@@ -278,9 +281,13 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
   });
 
   // React Query hooks
-  const { data: conversations = [], isLoading: loading } = useConversations(user?.id);
-  const { data: chatMessages = [] } = useChatMessages(selectedChat || '', user?.id || '');
+  const { data: conversations = [], isLoading: loading, refetch: refetchConversations } = useConversations(user?.id);
+  const { data: chatMessages = [], refetch: refetchMessages } = useChatMessages(
+    selectedChat && !selectedChat.startsWith('new_') ? selectedChat : '',
+    user?.id || ''
+  );
   const sendMessageMutation = useSendMessage();
+  const markMessagesAsReadMutation = useMarkMessagesAsRead();
 
   // Gesture handling for swipe down to go back
   const handleGesture = (event: PanGestureHandlerGestureEvent) => {
@@ -338,15 +345,26 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
       if (existingConversation) {
         setSelectedChat(existingConversation.id);
       } else {
-        // Start new conversation with direct user info
-        setSelectedChat(directUserId);
+        // For new conversations, we'll let the sendMessage handle creating it
+        // For now, just set a temporary state to indicate we want to start a new chat
+        setSelectedChat(`new_${directUserId}`);
       }
     }
   }, [directUserId, directUserName, conversations, user?.id]);
 
+  // Mark messages as read when opening a chat
+  useEffect(() => {
+    if (selectedChat && user?.id && selectedChat !== `new_${directUserId}`) {
+      markMessagesAsReadMutation.mutate({
+        conversationId: selectedChat,
+        userId: user.id,
+      });
+    }
+  }, [selectedChat, user?.id]);
 
-  const selectedChatData = conversations.find(chat => chat.id === selectedChat) || (directUserId && directUserName ? {
-    id: directUserId,
+
+  const selectedChatData = conversations.find(chat => chat.id === selectedChat) || (selectedChat?.startsWith('new_') && directUserId && directUserName ? {
+    id: selectedChat,
     otherUserId: directUserId,
     otherUserName: directUserName,
     otherUserAvatar: 'https://avatar.iran.liara.run/public/boy', // Default avatar
@@ -377,7 +395,15 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
           {item.lastMessage}
         </Text>
       </View>
-      {item.unread && <View style={dynamicStyles.unreadDot} />}
+      {item.unread && (
+        <View style={dynamicStyles.unreadDot}>
+          {item.unreadCount && item.unreadCount > 1 && (
+            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+              {item.unreadCount > 99 ? '99+' : item.unreadCount}
+            </Text>
+          )}
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -397,19 +423,13 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
   );
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat || !user?.id) return;
+    if (!newMessage.trim() || !selectedChat || !user?.id || !selectedChatData) return;
 
     try {
-      const otherUserId = selectedChat.includes('_')
-        ? selectedChat.split('_').find(id => id !== user.id)
-        : selectedChat;
-
-      if (!otherUserId) return;
-
       // Use React Query mutation
       await sendMessageMutation.mutateAsync({
         senderId: user.id,
-        receiverId: otherUserId,
+        receiverId: selectedChatData.otherUserId,
         content: newMessage.trim(),
       });
 
@@ -420,7 +440,7 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
     }
   };
 
-  if (selectedChat) {
+  if (selectedChat && selectedChatData) {
     const { height: screenHeight } = Dimensions.get('window');
     const inputContainerHeight = 70; // Approximate height of message input container
     const availableHeight = screenHeight - keyboardHeight - inputContainerHeight - 100; // 100 for header
@@ -444,18 +464,24 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
           </View>
 
           {/* Messages */}
-          <View style={[dynamicStyles.messagesContainer, { height: availableHeight }]}>
-            <FlatList
-              ref={flatListRef}
-              data={chatMessages}
-              renderItem={renderChatMessage}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={dynamicStyles.chatContainer}
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-              onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-            />
-          </View>
+          <FlatList
+            ref={flatListRef}
+            data={chatMessages}
+            renderItem={renderChatMessage}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={[dynamicStyles.chatContainer, { minHeight: availableHeight }]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={false}
+                onRefresh={refetchMessages}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+              />
+            }
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          />
 
           {/* Message Input - Positioned absolutely above keyboard */}
           <View style={[
@@ -526,6 +552,14 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={dynamicStyles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={refetchConversations}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
           ListEmptyComponent={
             <View style={dynamicStyles.emptyContainer}>
               <Text style={dynamicStyles.emptyText}>No conversations yet. Start messaging!</Text>

@@ -9,10 +9,11 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { usePosts, useLikePost, useStories, useCreateStory, useDeletePost } from '../lib/queries';
+import { usePosts, useLikePost, useStories, useCreateStory, useDeletePost, useProfile } from '../lib/queries';
 import { Post, Story } from '../types';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -45,8 +46,9 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useSupabaseAuth();
   const { colors } = useTheme();
   const [searchText, setSearchText] = useState('');
-  const { data: posts = [], isLoading: loading, error } = usePosts();
+  const { data: posts = [], isLoading: loading, error, refetch } = usePosts();
   const { data: stories = [] } = useStories(user?.id);
+  const { data: userProfile } = useProfile(user?.id || '');
   const likePostMutation = useLikePost();
   const createStoryMutation = useCreateStory();
   const deletePostMutation = useDeletePost();
@@ -225,12 +227,12 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const hasUserStory = stories.some(story => story.userId === user?.id);
     const yourStory = hasUserStory
       ? stories.find(story => story.userId === user?.id)
-      : { _id: 'your-story', userId: user?.id || '', imageUrl: '', timestamp: 0, user: { name: 'Your Story', avatarUrl: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || 'https://avatar.iran.liara.run/public/boy' } };
+      : { _id: 'your-story', userId: user?.id || '', imageUrl: '', timestamp: 0, user: { name: 'Your Story', avatarUrl: userProfile?.avatar_url || 'https://avatar.iran.liara.run/public/boy' } };
 
     const otherStories = stories.filter(story => story.userId !== user?.id);
 
     return [yourStory, ...otherStories];
-  }, [stories, user]);
+  }, [stories, user, userProfile]);
 
   const handleAddStory = async () => {
     if (!user?.id) {
@@ -434,6 +436,14 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       keyExtractor={(item) => item._id}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={dynamicStyles.feedContainer}
+      refreshControl={
+        <RefreshControl
+          refreshing={loading}
+          onRefresh={refetch}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
       ListEmptyComponent={
         loading ? (
           <View style={dynamicStyles.loadingContainer}>

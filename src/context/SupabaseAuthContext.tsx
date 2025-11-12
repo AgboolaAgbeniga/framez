@@ -74,16 +74,80 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    // First check if user exists in profiles table
+    const { data: existingUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (!existingUser) {
+      return {
+        error: {
+          message: 'No account found with this email address. Please check your email or sign up for a new account.',
+        }
+      };
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+
+    // Provide more specific error messages
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        return {
+          error: {
+            message: 'Incorrect password. Please try again or reset your password.',
+          }
+        };
+      }
+      if (error.message.includes('Email not confirmed')) {
+        return {
+          error: {
+            message: 'Please check your email and click the verification link before signing in.',
+          }
+        };
+      }
+    }
+
     return { error };
   };
 
   const signUp = async (email: string, password: string, userData: { name: string; username: string }) => {
+    // Check if user already exists in profiles table
+    const { data: existingUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      return {
+        error: {
+          message: 'An account with this email address already exists. Please try signing in instead.',
+        }
+      };
+    }
+
     // Generate username from display name if not provided
     const username = userData.username || userData.name.toLowerCase().replace(/\s+/g, '');
+
+    // Check if username already exists
+    const { data: existingUsername } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', username)
+      .single();
+
+    if (existingUsername) {
+      return {
+        error: {
+          message: 'This username is already taken. Please choose a different one.',
+        }
+      };
+    }
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -116,6 +180,25 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       if (profileError) {
         console.error('Error creating profile:', profileError);
+        // Don't return error here as auth signup succeeded
+      }
+    }
+
+    // Provide more specific error messages for signup
+    if (error) {
+      if (error.message.includes('User already registered')) {
+        return {
+          error: {
+            message: 'An account with this email address already exists. Please try signing in instead.',
+          }
+        };
+      }
+      if (error.message.includes('Password should be at least')) {
+        return {
+          error: {
+            message: 'Password must be at least 6 characters long.',
+          }
+        };
       }
     }
 

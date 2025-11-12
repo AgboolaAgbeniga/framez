@@ -17,7 +17,7 @@ import { useTheme } from '../context/ThemeContext';
 import { typography, borderRadius, spacing } from '../lib/theme';
 import { createPostSchema, type CreatePostFormData } from '../lib/validations';
 import { uploadPostImage, validateFile } from '../lib/storage';
-import { useCreatePost } from '../lib/queries';
+import { useCreatePost, useProfile } from '../lib/queries';
 import { addToUploadQueue } from '../lib/backgroundUpload';
 import { supabase } from '../lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,6 +30,7 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors } = useTheme();
   const createPostMutation = useCreatePost();
   const queryClient = useQueryClient();
+  const { data: userProfile } = useProfile(user?.id || '');
   const [formData, setFormData] = useState<CreatePostFormData>({
     content: '',
   });
@@ -326,14 +327,14 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       <ScrollView style={dynamicStyles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* User Info Row */}
         <View style={dynamicStyles.userInfoRow}>
-          <Image
+          <FastImage
             source={{
-              uri: 'https://avatar.iran.liara.run/public/boy', // TODO: Get from profile
+              uri: userProfile?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
             }}
             style={dynamicStyles.userAvatar}
           />
           <View style={dynamicStyles.userInfo}>
-            <Text style={dynamicStyles.username}>{user?.user_metadata?.name || 'Demo User'}</Text>
+            <Text style={dynamicStyles.username}>{userProfile?.display_name || user?.user_metadata?.name || 'Demo User'}</Text>
             <Text style={dynamicStyles.userSubtext}>What's on your mind?</Text>
           </View>
         </View>

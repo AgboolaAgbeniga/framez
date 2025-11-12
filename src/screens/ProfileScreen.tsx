@@ -6,12 +6,12 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
-  ScrollView,
   Dimensions,
   ActivityIndicator,
   Alert,
   ActionSheetIOS,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -36,6 +36,7 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [showUnfollowModal, setShowUnfollowModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const userId = route?.params?.userId || user?.id;
 
   // Create dynamic styles based on theme
@@ -473,6 +474,12 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserProfile();
+    setRefreshing(false);
+  };
+
   const renderGridItem = ({ item }: { item: Post }) => (
     <TouchableOpacity
       style={dynamicStyles.gridItem}
@@ -531,82 +538,92 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
           <Text style={dynamicStyles.loadingText}>Loading profile...</Text>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={dynamicStyles.scrollContent}>
-          {/* Profile Info Section */}
-          <View style={dynamicStyles.profileSection}>
-            <Image
-              source={{
-                uri: profile?.avatar_url ? `${profile.avatar_url}?t=${Date.now()}` : 'https://avatar.iran.liara.run/public/boy',
-              }}
-              style={staticStyles.profileAvatar}
+        <FlatList
+          data={userPosts}
+          renderItem={renderGridItem}
+          keyExtractor={(item) => item._id}
+          numColumns={numColumns}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={dynamicStyles.gridContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
             />
-            <Text style={dynamicStyles.displayName}>{profile?.display_name || 'Demo User'}</Text>
-            <Text style={dynamicStyles.username}>@{profile?.username || 'demouser'}</Text>
+          }
+          ListHeaderComponent={
+            <View>
+              {/* Profile Info Section */}
+              <View style={dynamicStyles.profileSection}>
+                <Image
+                  source={{
+                    uri: profile?.avatar_url ? `${profile.avatar_url}?t=${Date.now()}` : 'https://avatar.iran.liara.run/public/boy',
+                  }}
+                  style={staticStyles.profileAvatar}
+                />
+                <Text style={dynamicStyles.displayName}>{profile?.display_name || 'Demo User'}</Text>
+                <Text style={dynamicStyles.username}>@{profile?.username || 'demouser'}</Text>
 
-            {/* Stats Row */}
-            <View style={dynamicStyles.statsRow}>
-              <View style={dynamicStyles.statItem}>
-                <Text style={dynamicStyles.statNumber}>{userStats.posts}</Text>
-                <Text style={dynamicStyles.statLabel}>Posts</Text>
+                {/* Stats Row */}
+                <View style={dynamicStyles.statsRow}>
+                  <View style={dynamicStyles.statItem}>
+                    <Text style={dynamicStyles.statNumber}>{userStats.posts}</Text>
+                    <Text style={dynamicStyles.statLabel}>Posts</Text>
+                  </View>
+                  <View style={dynamicStyles.statItem}>
+                    <Text style={dynamicStyles.statNumber}>{userStats.followers}</Text>
+                    <Text style={dynamicStyles.statLabel}>Followers</Text>
+                  </View>
+                  <View style={dynamicStyles.statItem}>
+                    <Text style={dynamicStyles.statNumber}>{userStats.following}</Text>
+                    <Text style={dynamicStyles.statLabel}>Following</Text>
+                  </View>
+                </View>
+
+                {/* Action Buttons - Show follow/message for other profiles, edit for own */}
+                {isOwnProfile ? (
+                  <TouchableOpacity style={dynamicStyles.editButton} onPress={() => navigation.navigate('EditProfile')}>
+                    <Text style={dynamicStyles.editButtonText}>Edit Profile</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={dynamicStyles.actionButtons}>
+                    <TouchableOpacity
+                      style={[dynamicStyles.actionButton, dynamicStyles.followButton, isFollowing && dynamicStyles.followingButton]}
+                      onPress={handleFollowToggle}
+                    >
+                      <Text style={[dynamicStyles.actionButtonText, isFollowing && dynamicStyles.followingButtonText]}>
+                        {isFollowing ? 'Following' : 'Follow'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[dynamicStyles.actionButton, dynamicStyles.messageButton]}
+                      onPress={handleMessagePress}
+                    >
+                      <MaterialIcons name="message" size={20} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
-              <View style={dynamicStyles.statItem}>
-                <Text style={dynamicStyles.statNumber}>{userStats.followers}</Text>
-                <Text style={dynamicStyles.statLabel}>Followers</Text>
+
+              {/* Bio Section */}
+              <View style={dynamicStyles.bioSection}>
+                <Text style={dynamicStyles.bioText}>{profile?.bio || 'No bio yet'}</Text>
               </View>
-              <View style={dynamicStyles.statItem}>
-                <Text style={dynamicStyles.statNumber}>{userStats.following}</Text>
-                <Text style={dynamicStyles.statLabel}>Following</Text>
+
+              {/* Posts Title */}
+              <View style={dynamicStyles.postsSection}>
+                <Text style={dynamicStyles.postsTitle}>{isOwnProfile ? 'Your Posts' : 'Posts'}</Text>
               </View>
             </View>
-
-            {/* Action Buttons - Show follow/message for other profiles, edit for own */}
-            {isOwnProfile ? (
-              <TouchableOpacity style={dynamicStyles.editButton} onPress={() => navigation.navigate('EditProfile')}>
-                <Text style={dynamicStyles.editButtonText}>Edit Profile</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={dynamicStyles.actionButtons}>
-                <TouchableOpacity
-                  style={[dynamicStyles.actionButton, dynamicStyles.followButton, isFollowing && dynamicStyles.followingButton]}
-                  onPress={handleFollowToggle}
-                >
-                  <Text style={[dynamicStyles.actionButtonText, isFollowing && dynamicStyles.followingButtonText]}>
-                    {isFollowing ? 'Following' : 'Follow'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[dynamicStyles.actionButton, dynamicStyles.messageButton]}
-                  onPress={handleMessagePress}
-                >
-                  <MaterialIcons name="message" size={20} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-
-          {/* Bio Section */}
-          <View style={dynamicStyles.bioSection}>
-            <Text style={dynamicStyles.bioText}>{profile?.bio || 'No bio yet'}</Text>
-          </View>
-
-          {/* Posts Grid */}
-          <View style={dynamicStyles.postsSection}>
-            <Text style={dynamicStyles.postsTitle}>{isOwnProfile ? 'Your Posts' : 'Posts'}</Text>
-            <FlatList
-              data={userPosts}
-              renderItem={renderGridItem}
-              keyExtractor={(item) => item._id}
-              numColumns={numColumns}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={dynamicStyles.gridContainer}
-              ListEmptyComponent={
-                <View style={dynamicStyles.emptyContainer}>
-                  <Text style={dynamicStyles.emptyText}>No posts yet. Share your first moment!</Text>
-                </View>
-              }
-            />
-          </View>
-        </ScrollView>
+          }
+          ListEmptyComponent={
+            <View style={dynamicStyles.emptyContainer}>
+              <Text style={dynamicStyles.emptyText}>No posts yet. Share your first moment!</Text>
+            </View>
+          }
+        />
       )}
 
       {/* Bottom Navigation */}

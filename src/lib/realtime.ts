@@ -111,12 +111,36 @@ export const subscribeToFollows = (userId: string) => {
   return channel;
 };
 
+// Real-time subscriptions for notifications
+export const subscribeToNotifications = (userId: string) => {
+  const channel = supabase
+    .channel('notifications')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`,
+      },
+      (payload) => {
+        console.log('New notification received:', payload);
+        // Invalidate notifications query to refresh the list
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      }
+    )
+    .subscribe();
+
+  return channel;
+};
+
 // Initialize all subscriptions for a user
 export const initializeRealtimeSubscriptions = (userId: string) => {
   const subscriptions = [
     subscribeToMessages(userId),
     subscribeToPosts(),
     subscribeToFollows(userId),
+    subscribeToNotifications(userId),
   ];
 
   console.log('Real-time subscriptions initialized for user:', userId);

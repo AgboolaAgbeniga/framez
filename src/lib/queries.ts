@@ -14,6 +14,7 @@ export const queryKeys = {
   likes: (postId: string) => ['likes', postId] as const,
   stories: ['stories'] as const,
   userStories: (userId: string) => ['stories', 'user', userId] as const,
+  notifications: ['notifications'] as const,
 };
 
 // Posts Queries
@@ -215,73 +216,68 @@ export const useConversations = (userId?: string) => {
     queryFn: async () => {
       if (!userId) return [];
 
-      // Fetch messages where user is sender or receiver
-      const { data: sentMessages, error: sentError } = await supabase
-        .from('messages')
+      // Fetch conversations where user is user_a or user_b
+      const { data: conversations, error } = await supabase
+        .from('conversations')
         .select(`
           id,
-          content,
+          user_a_id,
+          user_b_id,
           created_at,
-          receiver_id,
-          sender_id,
-          profiles!messages_receiver_id_fkey (
+          updated_at,
+          messages!inner (
             id,
-            display_name,
-            avatar_url
+            content,
+            created_at,
+            sender_id,
+            is_read
           )
         `)
-        .eq('sender_id', userId)
-        .order('created_at', { ascending: false });
+        .or(`user_a_id.eq.${userId},user_b_id.eq.${userId}`)
+        .order('updated_at', { ascending: false });
 
-      const { data: receivedMessages, error: receivedError } = await supabase
-        .from('messages')
-        .select(`
-          id,
-          content,
-          created_at,
-          receiver_id,
-          sender_id,
-          profiles!messages_sender_id_fkey (
-            id,
-            display_name,
-            avatar_url
-          )
-        `)
-        .eq('receiver_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (sentError || receivedError) {
-        console.error('Error fetching messages:', sentError || receivedError);
+      if (error) {
+        console.error('Error fetching conversations:', error);
         return [];
       }
 
-      // Combine and group by conversation
-      const allMessages = [
-        ...(sentMessages || []).map(msg => ({ ...msg, isSent: true })),
-        ...(receivedMessages || []).map(msg => ({ ...msg, isSent: false })),
-      ];
+      // Process conversations with user details and last message
+      const processedConversations = await Promise.all(
+        (conversations || []).map(async (conv: any) => {
+          const otherUserId = conv.user_a_id === userId ? conv.user_b_id : conv.user_a_id;
 
-      const conversationMap = new Map<string, any>();
+          // Get other user's profile
+          const { data: otherUserProfile } = await supabase
+            .from('profiles')
+            .select('id, display_name, avatar_url')
+            .eq('id', otherUserId)
+            .single();
 
-      allMessages.forEach((msg: any) => {
-        const otherUserId = msg.isSent ? msg.receiver_id : msg.sender_id;
-        const otherUser = msg.isSent ? msg.profiles : msg.profiles;
-        const conversationId = [userId, otherUserId].sort().join('_');
+          // Get the most recent message
+          const sortedMessages = conv.messages?.sort(
+            (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          ) || [];
+          const lastMessage = sortedMessages[0];
 
-        if (!conversationMap.has(conversationId)) {
-          conversationMap.set(conversationId, {
-            id: conversationId,
+          // Check for unread messages (messages not read by current user)
+          const unreadCount = sortedMessages.filter((msg: any) =>
+            msg.sender_id !== userId && !msg.is_read
+          ).length;
+
+          return {
+            id: conv.id,
             otherUserId,
-            otherUserName: otherUser?.display_name || 'Unknown User',
-            otherUserAvatar: otherUser?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
-            lastMessage: msg.content,
-            timestamp: new Date(msg.created_at).getTime(),
-            unread: !msg.isSent, // Simplified - in real app you'd track read status
-          });
-        }
-      });
+            otherUserName: otherUserProfile?.display_name || 'Unknown User',
+            otherUserAvatar: otherUserProfile?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
+            lastMessage: lastMessage?.content || '',
+            timestamp: lastMessage ? new Date(lastMessage.created_at).getTime() : new Date(conv.created_at).getTime(),
+            unread: unreadCount > 0,
+            unreadCount,
+          };
+        })
+      );
 
-      return Array.from(conversationMap.values());
+      return processedConversations;
     },
     enabled: !!userId,
   });
@@ -293,10 +289,6 @@ export const useChatMessages = (conversationId: string, userId: string) => {
     queryFn: async () => {
       if (!conversationId || !userId) return [];
 
-      // Extract other user ID from conversation ID
-      const otherUserId = conversationId.split('_').find(id => id !== userId);
-      if (!otherUserId) return [];
-
       const { data: messages, error } = await supabase
         .from('messages')
         .select(`
@@ -304,9 +296,11 @@ export const useChatMessages = (conversationId: string, userId: string) => {
           content,
           created_at,
           sender_id,
-          receiver_id
+          receiver_id,
+          is_read
         `)
-        .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`)
+        .eq('conversation_id', conversationId)
+        .is('is_deleted', false) // Only show non-deleted messages
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -323,6 +317,7 @@ export const useChatMessages = (conversationId: string, userId: string) => {
           minute: '2-digit'
         }),
         createdAt: msg.created_at,
+        isRead: msg.is_read,
       }));
     },
     enabled: !!conversationId && !!userId,
@@ -402,11 +397,44 @@ export const useLikePost = () => {
         if (error) throw error;
         return { action: 'unlike' };
       } else {
-        // Like
+        // Like - get post owner info first for notification
+        const { data: post } = await supabase
+          .from('posts')
+          .select('user_id, content')
+          .eq('id', postId)
+          .single();
+
+        if (!post) throw new Error('Post not found');
+
+        // Insert like
         const { error } = await supabase
           .from('likes')
           .insert({ user_id: userId, post_id: postId });
         if (error) throw error;
+
+        // Create notification for post owner (if not liking own post)
+        if (post.user_id !== userId) {
+          const { data: likerProfile } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', userId)
+            .single();
+
+          const contentPreview = post.content?.substring(0, 50) || 'your post';
+          const preview = contentPreview.length < post.content?.length ? `${contentPreview}...` : contentPreview;
+
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: post.user_id,
+              type: 'like',
+              title: `${likerProfile?.display_name || 'Someone'} liked your post`,
+              content: `"${preview}"`,
+              related_post_id: postId,
+              related_user_id: userId,
+            });
+        }
+
         return { action: 'like' };
       }
     },
@@ -421,6 +449,15 @@ export const useAddComment = () => {
 
   return useMutation({
     mutationFn: async ({ postId, userId, content }: { postId: string; userId: string; content: string }) => {
+      // Get post owner info first for notification
+      const { data: post } = await supabase
+        .from('posts')
+        .select('user_id, content')
+        .eq('id', postId)
+        .single();
+
+      if (!post) throw new Error('Post not found');
+
       const { data, error } = await supabase
         .from('comments')
         .insert({
@@ -432,6 +469,29 @@ export const useAddComment = () => {
         .single();
 
       if (error) throw error;
+
+      // Create notification for post owner (if not commenting on own post)
+      if (post.user_id !== userId) {
+        const { data: commenterProfile } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', userId)
+          .single();
+
+        const contentPreview = content.length > 30 ? `${content.substring(0, 30)}...` : content;
+
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: post.user_id,
+            type: 'comment',
+            title: `${commenterProfile?.display_name || 'Someone'} commented on your post`,
+            content: `"${contentPreview}"`,
+            related_post_id: postId,
+            related_user_id: userId,
+          });
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {
@@ -470,9 +530,37 @@ export const useSendMessage = () => {
 
   return useMutation({
     mutationFn: async ({ senderId, receiverId, content }: { senderId: string; receiverId: string; content: string }) => {
+      // Find existing conversation between these users
+      const { data: existingConv, error: findError } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`and(user_a_id.eq.${senderId},user_b_id.eq.${receiverId}),and(user_a_id.eq.${receiverId},user_b_id.eq.${senderId})`)
+        .maybeSingle();
+
+      let conversationId: string;
+
+      if (existingConv) {
+        conversationId = existingConv.id;
+      } else {
+        // Create new conversation
+        const { data: newConv, error: createError } = await supabase
+          .from('conversations')
+          .insert({
+            user_a_id: senderId,
+            user_b_id: receiverId,
+          })
+          .select('id')
+          .single();
+
+        if (createError) throw createError;
+        conversationId = newConv.id;
+      }
+
+      // Send message with proper conversation_id
       const { data, error } = await supabase
         .from('messages')
         .insert({
+          conversation_id: conversationId,
           sender_id: senderId,
           receiver_id: receiverId,
           content: content.trim(),
@@ -481,13 +569,127 @@ export const useSendMessage = () => {
         .single();
 
       if (error) throw error;
+
+      // Update conversation's updated_at
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
+
       return data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       // Invalidate conversations and specific chat
-      const conversationId = [variables.senderId, variables.receiverId].sort().join('_');
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
-      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      queryClient.invalidateQueries({ queryKey: ['messages', data.conversation_id] });
+    },
+  });
+};
+
+export const useMarkMessagesAsRead = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ conversationId, userId }: { conversationId: string; userId: string }) => {
+      // Get unread messages in this conversation sent by others
+      const { data: unreadMessages, error: fetchError } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .neq('sender_id', userId)
+        .eq('is_read', false);
+
+      if (fetchError) throw fetchError;
+
+      if (!unreadMessages || unreadMessages.length === 0) return;
+
+      // Mark messages as read
+      const { error: updateError } = await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('conversation_id', conversationId)
+        .neq('sender_id', userId)
+        .eq('is_read', false);
+
+      if (updateError) throw updateError;
+
+      // Insert read records for tracking
+      const readRecords = unreadMessages.map(msg => ({
+        message_id: msg.id,
+        reader_id: userId,
+      }));
+
+      const { error: insertError } = await supabase
+        .from('message_reads')
+        .insert(readRecords);
+
+      if (insertError) throw insertError;
+
+      return unreadMessages.length;
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate conversations and messages to update read status
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+      queryClient.invalidateQueries({ queryKey: ['messages', variables.conversationId] });
+    },
+  });
+};
+
+export const useFollowUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ targetUserId, currentUserId }: { targetUserId: string; currentUserId: string }) => {
+      // Check if already following
+      const { data: existingFollow } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('follower_id', currentUserId)
+        .eq('following_id', targetUserId)
+        .single();
+
+      if (existingFollow) {
+        // Unfollow
+        const { error } = await supabase
+          .from('follows')
+          .delete()
+          .eq('id', existingFollow.id);
+        if (error) throw error;
+        return { action: 'unfollow' };
+      } else {
+        // Follow
+        const { error } = await supabase
+          .from('follows')
+          .insert({
+            follower_id: currentUserId,
+            following_id: targetUserId
+          });
+        if (error) throw error;
+
+        // Create notification for the followed user
+        const { data: followerProfile } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', currentUserId)
+          .single();
+
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: targetUserId,
+            type: 'follow',
+            title: `${followerProfile?.display_name || 'Someone'} started following you`,
+            content: `${followerProfile?.display_name || 'Someone'} is now following you`,
+            related_user_id: currentUserId,
+          });
+
+        return { action: 'follow' };
+      }
+    },
+    onSuccess: () => {
+      // Invalidate profile and stories queries
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.stories });
     },
   });
 };

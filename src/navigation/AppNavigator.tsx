@@ -90,105 +90,103 @@ const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initial
   const { colors } = useTheme();
 
   return (
-    <NavigationContainer>
-      <AuthStack.Navigator
-        initialRouteName={initialRoute}
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: colors.background,
-          },
-          headerTintColor: colors.textPrimary,
-          headerTitleStyle: {
-            fontWeight: 'bold',
-            color: colors.textPrimary,
-          },
-        }}
+    <AuthStack.Navigator
+      initialRouteName={initialRoute}
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: colors.background,
+        },
+        headerTintColor: colors.textPrimary,
+        headerTitleStyle: {
+          fontWeight: 'bold',
+          color: colors.textPrimary,
+        },
+      }}
+    >
+      <AuthStack.Screen
+        name="Login"
+        options={{ headerShown: false }}
       >
-        <AuthStack.Screen
-          name="Login"
-          options={{ headerShown: false }}
-        >
-          {(props: any) => (
-            <LoginScreen
-              onSignUp={() => props.navigation.navigate('SignUp')}
-              onLogin={(credentials) => {
-                // Handle login logic here
-                console.log('Login:', credentials);
-                onAuthSuccess();
-              }}
-              onForgotPassword={() => props.navigation.navigate('ForgotPassword')}
-            />
-          )}
-        </AuthStack.Screen>
-        <AuthStack.Screen
-          name="SignUp"
-          options={{ headerShown: false }}
-        >
-          {(props: any) => (
-            <SignUpScreen
-              onSignIn={() => props.navigation.navigate('Login')}
-              onSignUp={(userData) => {
-                // Handle sign up logic here
-                console.log('Sign up:', userData);
+        {(props: any) => (
+          <LoginScreen
+            onSignUp={() => props.navigation.navigate('SignUp')}
+            onLogin={(credentials) => {
+              // Handle login logic here
+              console.log('Login:', credentials);
+              onAuthSuccess();
+            }}
+            onForgotPassword={() => props.navigation.navigate('ForgotPassword')}
+          />
+        )}
+      </AuthStack.Screen>
+      <AuthStack.Screen
+        name="SignUp"
+        options={{ headerShown: false }}
+      >
+        {(props: any) => (
+          <SignUpScreen
+            onSignIn={() => props.navigation.navigate('Login')}
+            onSignUp={(userData) => {
+              // Handle sign up logic here
+              console.log('Sign up:', userData);
 
-                // Simulate email notification
-                console.log(`Email sent to ${userData.email}: Welcome to Framez! Your account has been created successfully.`);
+              // Simulate email notification
+              console.log(`Email sent to ${userData.email}: Welcome to Framez! Your account has been created successfully.`);
 
-                // Pass user data to show welcome screen
-                onAuthSuccess(userData);
-              }}
-            />
-          )}
-        </AuthStack.Screen>
-        <AuthStack.Screen
-          name="ForgotPassword"
-          options={{ headerShown: false }}
-        >
-          {(props: any) => (
-            <ForgotPasswordScreen
-              onSendOTP={(email) => {
-                setCurrentEmail(email);
-                console.log(`OTP sent to ${email}`);
-                props.navigation.navigate('OTP');
-              }}
-              onBackToLogin={() => props.navigation.goBack()}
-            />
-          )}
-        </AuthStack.Screen>
-        <AuthStack.Screen
-          name="OTP"
-          options={{ headerShown: false }}
-        >
-          {(props: any) => (
-            <OTPScreen
-              email={currentEmail}
-              onVerifyOTP={(otp) => {
-                console.log('OTP verified:', otp);
-                props.navigation.navigate('ResetPassword');
-              }}
-              onResendOTP={() => {
-                console.log(`OTP resent to ${currentEmail}`);
-              }}
-              onBack={() => props.navigation.goBack()}
-            />
-          )}
-        </AuthStack.Screen>
-        <AuthStack.Screen
-          name="ResetPassword"
-          options={{ headerShown: false }}
-        >
-          {(props: any) => (
-            <ResetPasswordScreen
-              onResetPassword={(newPassword, confirmPassword) => {
-                console.log('Password reset successful');
-                // Navigate back to login
-                props.navigation.popToTop();
-              }}
-            />
-          )}
-        </AuthStack.Screen>
-      </AuthStack.Navigator>
-    </NavigationContainer>
+              // Pass user data to show welcome screen
+              onAuthSuccess(userData);
+            }}
+          />
+        )}
+      </AuthStack.Screen>
+      <AuthStack.Screen
+        name="ForgotPassword"
+        options={{ headerShown: false }}
+      >
+        {(props: any) => (
+          <ForgotPasswordScreen
+            onSendOTP={(email) => {
+              setCurrentEmail(email);
+              console.log(`OTP sent to ${email}`);
+              props.navigation.navigate('OTP');
+            }}
+            onBackToLogin={() => props.navigation.goBack()}
+          />
+        )}
+      </AuthStack.Screen>
+      <AuthStack.Screen
+        name="OTP"
+        options={{ headerShown: false }}
+      >
+        {(props: any) => (
+          <OTPScreen
+            email={currentEmail}
+            onVerifyOTP={(otp) => {
+              console.log('OTP verified:', otp);
+              props.navigation.navigate('ResetPassword');
+            }}
+            onResendOTP={() => {
+              console.log(`OTP resent to ${currentEmail}`);
+            }}
+            onBack={() => props.navigation.goBack()}
+          />
+        )}
+      </AuthStack.Screen>
+      <AuthStack.Screen
+        name="ResetPassword"
+        options={{ headerShown: false }}
+      >
+        {(props: any) => (
+          <ResetPasswordScreen
+            onResetPassword={(newPassword, confirmPassword) => {
+              console.log('Password reset successful');
+              // Navigate back to login
+              props.navigation.popToTop();
+            }}
+          />
+        )}
+      </AuthStack.Screen>
+    </AuthStack.Navigator>
   );
 };
 
@@ -236,24 +234,7 @@ const AppNavigator: React.FC = () => {
     />;
   }
 
-  if (showAuth) {
-    return (
-      <AuthNavigator
-        onAuthSuccess={(userData?: any) => {
-          if (userData) {
-            // This is a signup success, show welcome screen
-            setUserName(userData.name);
-            setShowAuth(false);
-            setShowWelcome(true);
-          } else {
-            // This is a login success, go directly to main app
-            setShowAuth(false);
-          }
-        }}
-        initialRoute={authInitialRoute}
-      />
-    );
-  }
+  // Remove the showAuth conditional rendering since it's now handled in the Stack Navigator
 
   if (showWelcome) {
     return <WelcomeScreen
@@ -279,9 +260,25 @@ const AppNavigator: React.FC = () => {
         {!isAuthenticated ? (
           <Stack.Screen
             name="Auth"
-            component={AuthScreen}
             options={{ headerShown: false }}
-          />
+          >
+            {() => (
+              <AuthNavigator
+                onAuthSuccess={(userData?: any) => {
+                  if (userData) {
+                    // This is a signup success, show welcome screen
+                    setUserName(userData.name);
+                    setShowAuth(false);
+                    setShowWelcome(true);
+                  } else {
+                    // This is a login success, go directly to main app
+                    setShowAuth(false);
+                  }
+                }}
+                initialRoute={authInitialRoute}
+              />
+            )}
+          </Stack.Screen>
         ) : (
           <>
             <Stack.Screen
