@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { TouchableOpacity, Text } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 // Screens
 import SplashScreen from '../screens/SplashScreen';
@@ -23,12 +24,15 @@ import ProfileScreen from '../screens/ProfileScreen';
 import PostDetailScreen from '../screens/PostDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
 import UserProfileScreen from '../screens/ProfileScreen'; // Reuse ProfileScreen for user profiles
 
 const AuthStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const MainTabNavigator: React.FC = () => {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }: { route: any }) => ({
@@ -49,17 +53,17 @@ const MainTabNavigator: React.FC = () => {
 
           return <MaterialIcons name={iconName as any} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#006175',
-        tabBarInactiveTintColor: '#A0A0A0',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.navBackground,
           height: 70,
           paddingBottom: 10,
           paddingTop: 10,
           borderTopWidth: 1,
-          borderTopColor: '#F0F0F0',
+          borderTopColor: colors.navBorder,
           elevation: 8,
-          shadowColor: '#000',
+          shadowColor: colors.cardShadow,
           shadowOffset: {
             width: 0,
             height: -2,
@@ -83,6 +87,7 @@ const MainTabNavigator: React.FC = () => {
 
 const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initialRoute?: string }> = ({ onAuthSuccess, initialRoute = 'SignUp' }: { onAuthSuccess: (userData?: any) => void; initialRoute?: string }) => {
   const [currentEmail, setCurrentEmail] = useState('');
+  const { colors } = useTheme();
 
   return (
     <NavigationContainer>
@@ -90,11 +95,12 @@ const AuthNavigator: React.FC<{ onAuthSuccess: (userData?: any) => void; initial
         initialRouteName={initialRoute}
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#fff',
+            backgroundColor: colors.background,
           },
-          headerTintColor: '#333',
+          headerTintColor: colors.textPrimary,
           headerTitleStyle: {
             fontWeight: 'bold',
+            color: colors.textPrimary,
           },
         }}
       >
@@ -190,6 +196,7 @@ const Stack = createStackNavigator();
 
 const AppNavigator: React.FC = () => {
   console.log('AppNavigator rendering');
+  const { colors } = useTheme();
   const [showSplash, setShowSplash] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
@@ -260,11 +267,12 @@ const AppNavigator: React.FC = () => {
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#fff',
+            backgroundColor: colors.background,
           },
-          headerTintColor: '#333',
+          headerTintColor: colors.textPrimary,
           headerTitleStyle: {
             fontWeight: 'bold',
+            color: colors.textPrimary,
           },
         }}
       >
@@ -299,6 +307,11 @@ const AppNavigator: React.FC = () => {
             <Stack.Screen
               name="Settings"
               component={SettingsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="EditProfile"
+              component={EditProfileScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen

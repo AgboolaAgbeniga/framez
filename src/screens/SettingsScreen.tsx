@@ -66,7 +66,7 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       marginBottom: 15,
     },
     userAvatarText: {
-      color: '#FFFFFF',
+      color: colors.surface,
       fontSize: 24,
       fontWeight: 'bold',
     },
@@ -331,7 +331,7 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   value={theme === 'dark'}
                   onValueChange={toggleTheme}
                   trackColor={{ false: colors.inputBorder, true: colors.primary }}
-                  thumbColor="#FFFFFF"
+                  thumbColor={colors.surface}
                 />
               }
             />
@@ -344,7 +344,7 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   value={notifications}
                   onValueChange={setNotifications}
                   trackColor={{ false: colors.inputBorder, true: colors.primary }}
-                  thumbColor="#FFFFFF"
+                  thumbColor={colors.surface}
                 />
               }
             />

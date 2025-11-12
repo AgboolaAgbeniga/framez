@@ -10,11 +10,15 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
+  ActionSheetIOS,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Post } from '../types';
+import { typography, borderRadius, spacing } from '../lib/theme';
 
 const { width } = Dimensions.get('window');
 const numColumns = 3;
@@ -23,6 +27,7 @@ const itemSize = (width - 40 - 20) / numColumns; // 40 for padding, 20 for spaci
 
 const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const { user } = useSupabaseAuth();
+  const { colors } = useTheme();
   const [profile, setProfile] = useState<any>(null);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +35,223 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [showUnfollowModal, setShowUnfollowModal] = useState(false);
   const userId = route?.params?.userId || user?.id;
+
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 50,
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.lg,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    headerIcon: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      ...typography.body,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    scrollContent: {
+      paddingBottom: 80, // Account for bottom navigation
+    },
+    profileSection: {
+      alignItems: 'center',
+      paddingVertical: spacing.xxxl,
+      paddingHorizontal: spacing.xl,
+    },
+    profileAvatar: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      marginBottom: spacing.lg,
+    },
+    displayName: {
+      ...typography.body,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+      marginBottom: spacing.sm,
+    },
+    username: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.xl,
+    },
+    statsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      width: '100%',
+      marginBottom: spacing.xl,
+    },
+    statItem: {
+      alignItems: 'center',
+    },
+    statNumber: {
+      ...typography.body,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    statLabel: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+    },
+    editButton: {
+      borderWidth: 1,
+      borderColor: colors.error,
+      borderRadius: borderRadius.small,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.sm,
+    },
+    editButtonText: {
+      ...typography.caption,
+      fontWeight: '500',
+      color: colors.error,
+    },
+    actionButtons: {
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
+    actionButton: {
+      flex: 1,
+      borderRadius: borderRadius.small,
+      paddingVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      minWidth: 120,
+    },
+    followButton: {
+      backgroundColor: colors.primary,
+    },
+    followingButton: {
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    messageButton: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.divider,
+    },
+    actionButtonText: {
+      ...typography.caption,
+      fontWeight: '500',
+      color: '#FFFFFF',
+    },
+    followingButtonText: {
+      color: colors.primary,
+    },
+    bioSection: {
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    bioText: {
+      ...typography.body,
+      color: colors.textPrimary,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    postsSection: {
+      paddingTop: spacing.xl,
+    },
+    postsTitle: {
+      ...typography.subtitle,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+      paddingHorizontal: spacing.xl,
+      marginBottom: spacing.lg,
+    },
+    gridContainer: {
+      paddingHorizontal: spacing.xl,
+    },
+    gridItem: {
+      flex: 1,
+      margin: 2,
+      aspectRatio: 1,
+    },
+    gridImage: {
+      width: '100%',
+      height: '100%',
+      borderRadius: borderRadius.small,
+    },
+    bottomNav: {
+      flexDirection: 'row',
+      backgroundColor: colors.background,
+      borderTopWidth: 1,
+      borderTopColor: colors.divider,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      paddingBottom: 25,
+    },
+    navItem: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: spacing.md,
+      ...typography.body,
+      color: colors.textSecondary,
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: spacing.xxxl,
+      paddingVertical: spacing.xxxl * 2,
+    },
+    emptyText: {
+      ...typography.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    unfollowModal: {
+      position: 'absolute',
+      top: 60,
+      right: spacing.xl,
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.small,
+      padding: spacing.md,
+      shadowColor: colors.cardShadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 5,
+      zIndex: 1000,
+    },
+    unfollowButton: {
+      // paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.md,
+      alignItems: 'center',
+    },
+    unfollowButtonText: {
+      ...typography.body,
+      color: colors.error,
+      fontWeight: '500',
+    },
+  });
 
   useEffect(() => {
     if (userId) {
@@ -38,6 +259,37 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
       setIsOwnProfile(userId === user?.id);
     }
   }, [userId, user]);
+
+  // Refresh profile when screen comes into focus (e.g., returning from EditProfile)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (userId) {
+        fetchUserProfile();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, userId]);
+
+  // Add useEffect to refresh follow status when navigating to profile
+  useEffect(() => {
+    if (!isOwnProfile && user?.id && userId) {
+      // Refresh follow status when component mounts or userId changes
+      const refreshFollowStatus = async () => {
+        const { data: followStatusResult } = await supabase
+          .from('follows')
+          .select('id')
+          .eq('follower_id', user.id)
+          .eq('following_id', userId)
+          .maybeSingle();
+
+        setIsFollowing(!!followStatusResult);
+        console.log('Refreshed follow status for user', userId, ':', !!followStatusResult);
+      };
+
+      refreshFollowStatus();
+    }
+  }, [userId, user?.id, isOwnProfile]);
 
   const fetchUserProfile = async () => {
     try {
@@ -68,6 +320,7 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
         setFollowersCount(followersResult.count || 0);
         setFollowingCount(followingResult.count || 0);
         setIsFollowing(!!followStatusResult.data);
+        console.log('Follow status for user', userId, ':', !!followStatusResult.data);
       } else {
         // For own profile, fetch follower/following counts
         const [followersResult, followingResult] = await Promise.all([
@@ -100,7 +353,7 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
         timestamp: new Date(post.created_at).getTime(),
         user: {
           name: profileData.display_name,
-          avatarUrl: profileData.avatar_url,
+          avatarUrl: profileData.avatar_url ? `${profileData.avatar_url}?t=${Date.now()}` : undefined,
         },
       }));
 
@@ -120,12 +373,13 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
   };
 
   const handleFollowToggle = async () => {
-    console.log('Follow button pressed for user:', userId);
+    console.log('Follow button pressed for user:', userId, 'Current following status:', isFollowing);
     if (!user?.id || isOwnProfile) return;
 
     try {
       if (isFollowing) {
         // Unfollow
+        console.log('Unfollowing user:', userId);
         const { error } = await supabase
           .from('follows')
           .delete()
@@ -136,8 +390,10 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
 
         setIsFollowing(false);
         setFollowersCount(prev => prev - 1);
+        console.log('Successfully unfollowed user:', userId);
       } else {
         // Check if already following (prevent duplicate)
+        console.log('Checking if already following user:', userId);
         const { data: existingFollow } = await supabase
           .from('follows')
           .select('id')
@@ -146,12 +402,13 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
           .maybeSingle();
 
         if (existingFollow) {
-          // Already following, just update state
+          console.log('Already following user, updating state');
           setIsFollowing(true);
           return;
         }
 
         // Follow
+        console.log('Following user:', userId);
         const { error } = await supabase
           .from('follows')
           .insert({
@@ -163,6 +420,7 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
 
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
+        console.log('Successfully followed user:', userId);
       }
     } catch (error) {
       console.error('Error toggling follow:', error);
@@ -181,112 +439,169 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
     });
   };
 
+  const handleMoreOptions = () => {
+    console.log('More options pressed, isFollowing:', isFollowing, 'isOwnProfile:', isOwnProfile);
+
+    if (isOwnProfile || !isFollowing) {
+      console.log('Not showing options: isOwnProfile =', isOwnProfile, 'isFollowing =', isFollowing);
+      return;
+    }
+
+    console.log('Toggling unfollow modal for user:', profile?.username);
+    setShowUnfollowModal(!showUnfollowModal);
+  };
+
+  const handleUnfollow = async () => {
+    if (!user?.id || isOwnProfile) return;
+
+    try {
+      console.log('Unfollowing user:', userId);
+      const { error } = await supabase
+        .from('follows')
+        .delete()
+        .eq('follower_id', user.id)
+        .eq('following_id', userId);
+
+      if (error) throw error;
+
+      setIsFollowing(false);
+      setFollowersCount(prev => prev - 1);
+      console.log('Successfully unfollowed user:', userId);
+    } catch (error) {
+      console.error('Error unfollowing:', error);
+      Alert.alert('Error', 'Failed to unfollow user. Please try again.');
+    }
+  };
+
   const renderGridItem = ({ item }: { item: Post }) => (
     <TouchableOpacity
-      style={styles.gridItem}
+      style={dynamicStyles.gridItem}
       onPress={() => navigation.navigate('PostDetail', {
         post: item,
         allPosts: userPosts
       })}
     >
-      <Image source={{ uri: item.imageUrl }} style={styles.gridImage} />
+      <Image source={{ uri: item.imageUrl }} style={staticStyles.gridImage} />
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={dynamicStyles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back" size={24} color="#000000" />
+      <View style={dynamicStyles.header}>
+        <TouchableOpacity style={dynamicStyles.headerIcon} onPress={() => navigation.goBack()}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{profile?.username || 'username'}</Text>
+        <Text style={dynamicStyles.headerTitle}>{profile?.username || 'username'}</Text>
         {isOwnProfile ? (
-          <TouchableOpacity style={styles.headerIcon} onPress={() => navigation.navigate('Settings')}>
-            <MaterialIcons name="settings" size={24} color="#000000" />
+          <TouchableOpacity style={dynamicStyles.headerIcon} onPress={() => navigation.navigate('Settings')}>
+            <MaterialIcons name="settings" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+        ) : isFollowing ? (
+          <TouchableOpacity style={dynamicStyles.headerIcon} onPress={handleMoreOptions}>
+            <MaterialIcons name="more-vert" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         ) : (
-          <View style={styles.headerIcon} />
+          <View style={dynamicStyles.headerIcon} />
         )}
       </View>
 
+      {/* Unfollow Modal */}
+      {showUnfollowModal && (
+        <TouchableOpacity
+          style={dynamicStyles.unfollowModal}
+          onPress={() => setShowUnfollowModal(false)}
+          activeOpacity={1}
+        >
+          <TouchableOpacity
+            style={dynamicStyles.unfollowButton}
+            onPress={() => {
+              setShowUnfollowModal(false);
+              handleUnfollow();
+            }}
+          >
+            <Text style={dynamicStyles.unfollowButtonText}>Unfollow</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#006175" />
-          <Text style={styles.loadingText}>Loading profile...</Text>
+        <View style={dynamicStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={dynamicStyles.loadingText}>Loading profile...</Text>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={dynamicStyles.scrollContent}>
           {/* Profile Info Section */}
-          <View style={styles.profileSection}>
+          <View style={dynamicStyles.profileSection}>
             <Image
               source={{
-                uri: profile?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
+                uri: profile?.avatar_url ? `${profile.avatar_url}?t=${Date.now()}` : 'https://avatar.iran.liara.run/public/boy',
               }}
-              style={styles.profileAvatar}
+              style={staticStyles.profileAvatar}
             />
-            <Text style={styles.displayName}>{profile?.display_name || 'Demo User'}</Text>
-            <Text style={styles.username}>@{profile?.username || 'demouser'}</Text>
+            <Text style={dynamicStyles.displayName}>{profile?.display_name || 'Demo User'}</Text>
+            <Text style={dynamicStyles.username}>@{profile?.username || 'demouser'}</Text>
 
             {/* Stats Row */}
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{userStats.posts}</Text>
-                <Text style={styles.statLabel}>Posts</Text>
+            <View style={dynamicStyles.statsRow}>
+              <View style={dynamicStyles.statItem}>
+                <Text style={dynamicStyles.statNumber}>{userStats.posts}</Text>
+                <Text style={dynamicStyles.statLabel}>Posts</Text>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{userStats.followers}</Text>
-                <Text style={styles.statLabel}>Followers</Text>
+              <View style={dynamicStyles.statItem}>
+                <Text style={dynamicStyles.statNumber}>{userStats.followers}</Text>
+                <Text style={dynamicStyles.statLabel}>Followers</Text>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{userStats.following}</Text>
-                <Text style={styles.statLabel}>Following</Text>
+              <View style={dynamicStyles.statItem}>
+                <Text style={dynamicStyles.statNumber}>{userStats.following}</Text>
+                <Text style={dynamicStyles.statLabel}>Following</Text>
               </View>
             </View>
 
             {/* Action Buttons - Show follow/message for other profiles, edit for own */}
             {isOwnProfile ? (
-              <TouchableOpacity style={styles.editButton}>
-                <Text style={styles.editButtonText}>Edit Profile</Text>
+              <TouchableOpacity style={dynamicStyles.editButton} onPress={() => navigation.navigate('EditProfile')}>
+                <Text style={dynamicStyles.editButtonText}>Edit Profile</Text>
               </TouchableOpacity>
             ) : (
-              <View style={styles.actionButtons}>
+              <View style={dynamicStyles.actionButtons}>
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.followButton, isFollowing && styles.followingButton]}
+                  style={[dynamicStyles.actionButton, dynamicStyles.followButton, isFollowing && dynamicStyles.followingButton]}
                   onPress={handleFollowToggle}
                 >
-                  <Text style={[styles.actionButtonText, isFollowing && styles.followingButtonText]}>
+                  <Text style={[dynamicStyles.actionButtonText, isFollowing && dynamicStyles.followingButtonText]}>
                     {isFollowing ? 'Following' : 'Follow'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.messageButton]}
+                  style={[dynamicStyles.actionButton, dynamicStyles.messageButton]}
                   onPress={handleMessagePress}
                 >
-                  <MaterialIcons name="message" size={20} color="#006175" />
+                  <MaterialIcons name="message" size={20} color={colors.primary} />
                 </TouchableOpacity>
               </View>
             )}
           </View>
 
           {/* Bio Section */}
-          <View style={styles.bioSection}>
-            <Text style={styles.bioText}>{profile?.bio || 'No bio yet'}</Text>
+          <View style={dynamicStyles.bioSection}>
+            <Text style={dynamicStyles.bioText}>{profile?.bio || 'No bio yet'}</Text>
           </View>
 
           {/* Posts Grid */}
-          <View style={styles.postsSection}>
-            <Text style={styles.postsTitle}>{isOwnProfile ? 'Your Posts' : 'Posts'}</Text>
+          <View style={dynamicStyles.postsSection}>
+            <Text style={dynamicStyles.postsTitle}>{isOwnProfile ? 'Your Posts' : 'Posts'}</Text>
             <FlatList
               data={userPosts}
               renderItem={renderGridItem}
               keyExtractor={(item) => item._id}
               numColumns={numColumns}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.gridContainer}
+              contentContainerStyle={dynamicStyles.gridContainer}
               ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No posts yet. Share your first moment!</Text>
+                <View style={dynamicStyles.emptyContainer}>
+                  <Text style={dynamicStyles.emptyText}>No posts yet. Share your first moment!</Text>
                 </View>
               }
             />
@@ -300,205 +615,17 @@ const ProfileScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation,
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  // Header styles
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  // Scroll content
-  scrollContent: {
-    paddingBottom: 80, // Account for bottom navigation
-  },
-  // Profile section
-  profileSection: {
-    alignItems: 'center',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-  },
+// Static styles that don't depend on theme
+const staticStyles = StyleSheet.create({
   profileAvatar: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    marginBottom: 15,
-  },
-  displayName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-    marginBottom: 5,
-  },
-  username: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginBottom: 20,
-  },
-  // Stats row
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: 20,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 2,
-  },
-  // Edit button
-  editButton: {
-    borderWidth: 1,
-    borderColor: '#FF3B30',
-    borderRadius: 6,
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-  },
-  editButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#FF3B30',
-  },
-  // Action buttons for other profiles
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 120,
-  },
-  followButton: {
-    backgroundColor: '#006175',
-  },
-  followingButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#006175',
-  },
-  messageButton: {
-    backgroundColor: '#F2F2F7',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#FFFFFF',
-  },
-  followingButtonText: {
-    color: '#006175',
-  },
-  // Bio section
-  bioSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  bioText: {
-    fontSize: 14,
-    color: '#000000',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  // Posts section
-  postsSection: {
-    paddingTop: 20,
-  },
-  postsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-    paddingHorizontal: 20,
-    marginBottom: 15,
-  },
-  // Grid styles
-  gridContainer: {
-    paddingHorizontal: 20,
-  },
-  gridItem: {
-    flex: 1,
-    margin: 2,
-    aspectRatio: 1,
   },
   gridImage: {
     width: '100%',
     height: '100%',
     borderRadius: 4,
-  },
-  // Bottom navigation
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    paddingBottom: 25,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#8E8E93',
-    fontFamily: 'Inter-Regular',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
-    fontFamily: 'Inter-Regular',
   },
 });
 

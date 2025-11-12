@@ -18,7 +18,9 @@ import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import type { PanGestureHandlerGestureEvent, PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { useConversations, useChatMessages, useSendMessage } from '../lib/queries';
+import { typography, borderRadius, spacing } from '../lib/theme';
 import FastImage from '../components/FastImage';
 
 interface Conversation {
@@ -40,12 +42,240 @@ interface ChatMessage {
 
 const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const { user } = useSupabaseAuth();
+  const { colors } = useTheme();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 50,
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.lg,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    headerIcon: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      ...typography.body,
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.medium,
+      marginHorizontal: spacing.xl,
+      marginVertical: spacing.sm,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      shadowColor: colors.cardShadow,
+      shadowOffset: {
+        width: 0,
+        height: 1,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    searchIcon: {
+      marginRight: spacing.sm,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 16,
+      color: colors.textPrimary,
+    },
+    listContainer: {
+      paddingHorizontal: spacing.xl,
+    },
+    messageItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    avatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      marginRight: spacing.lg,
+    },
+    messageContent: {
+      flex: 1,
+    },
+    messageHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: spacing.xs,
+    },
+    senderName: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    timestamp: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    lastMessage: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    unreadMessage: {
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.error,
+    },
+    chatHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingTop: 50,
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.lg,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: spacing.lg,
+    },
+    chatAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      marginRight: spacing.sm,
+    },
+    chatUserName: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: colors.textPrimary,
+    },
+    chatContainer: {
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xl,
+    },
+    chatMessageContainer: {
+      marginBottom: spacing.lg,
+      maxWidth: '80%',
+    },
+    senderMessage: {
+      alignSelf: 'flex-end',
+    },
+    receiverMessage: {
+      alignSelf: 'flex-start',
+    },
+    chatMessageText: {
+      padding: spacing.md,
+      borderRadius: borderRadius.xl,
+      fontSize: 16,
+      lineHeight: 20,
+    },
+    senderText: {
+      backgroundColor: colors.error,
+      color: '#FFFFFF',
+    },
+    receiverText: {
+      backgroundColor: colors.surface,
+      color: colors.textPrimary,
+    },
+    chatTimestamp: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+      textAlign: 'right',
+    },
+    messageInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.lg,
+      backgroundColor: colors.background,
+      borderTopWidth: 1,
+      borderTopColor: colors.divider,
+    },
+    attachmentButton: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: spacing.sm,
+    },
+    messageInput: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: borderRadius.xl,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      fontSize: 16,
+      maxHeight: 100,
+      color: colors.textPrimary,
+    },
+    sendButton: {
+      width: 40,
+      height: 40,
+      borderRadius: borderRadius.xl,
+      backgroundColor: colors.error,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: spacing.sm,
+    },
+    messagesContainer: {
+      flex: 1,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: spacing.sm,
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: spacing.xxxl,
+      paddingVertical: spacing.xxxl * 2,
+    },
+    emptyText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+  });
 
   // React Query hooks
   const { data: conversations = [], isLoading: loading } = useConversations(user?.id);
@@ -127,42 +357,42 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
 
   const renderConversation = ({ item }: { item: Conversation }) => (
     <TouchableOpacity
-      style={styles.messageItem}
+      style={dynamicStyles.messageItem}
       onPress={() => {
         setSelectedChat(item.id);
       }}
     >
-      <FastImage source={{ uri: item.otherUserAvatar }} style={styles.avatar} />
-      <View style={styles.messageContent}>
-        <View style={styles.messageHeader}>
-          <Text style={styles.senderName}>{item.otherUserName}</Text>
-          <Text style={styles.timestamp}>
+      <FastImage source={{ uri: item.otherUserAvatar }} style={dynamicStyles.avatar} />
+      <View style={dynamicStyles.messageContent}>
+        <View style={dynamicStyles.messageHeader}>
+          <Text style={dynamicStyles.senderName}>{item.otherUserName}</Text>
+          <Text style={dynamicStyles.timestamp}>
             {new Date(item.timestamp).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit'
             })}
           </Text>
         </View>
-        <Text style={[styles.lastMessage, item.unread && styles.unreadMessage]}>
+        <Text style={[dynamicStyles.lastMessage, item.unread && dynamicStyles.unreadMessage]}>
           {item.lastMessage}
         </Text>
       </View>
-      {item.unread && <View style={styles.unreadDot} />}
+      {item.unread && <View style={dynamicStyles.unreadDot} />}
     </TouchableOpacity>
   );
 
   const renderChatMessage = ({ item }: { item: ChatMessage }) => (
     <View style={[
-      styles.chatMessageContainer,
-      item.isSender ? styles.senderMessage : styles.receiverMessage
+      dynamicStyles.chatMessageContainer,
+      item.isSender ? dynamicStyles.senderMessage : dynamicStyles.receiverMessage
     ]}>
       <Text style={[
-        styles.chatMessageText,
-        item.isSender ? styles.senderText : styles.receiverText
+        dynamicStyles.chatMessageText,
+        item.isSender ? dynamicStyles.senderText : dynamicStyles.receiverText
       ]}>
         {item.text}
       </Text>
-      <Text style={styles.chatTimestamp}>{item.timestamp}</Text>
+      <Text style={dynamicStyles.chatTimestamp}>{item.timestamp}</Text>
     </View>
   );
 
@@ -200,27 +430,27 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
         onGestureEvent={handleGesture}
         onHandlerStateChange={handleGestureStateChange}
       >
-        <View style={styles.container}>
+        <View style={dynamicStyles.container}>
           {/* Chat Header */}
-          <View style={styles.chatHeader}>
+          <View style={dynamicStyles.chatHeader}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
-              style={styles.backButton}
+              style={dynamicStyles.backButton}
             >
-              <MaterialIcons name="arrow-back" size={24} color="#000000" />
+              <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
-            <FastImage source={{ uri: selectedChatData?.otherUserAvatar }} style={styles.chatAvatar} />
-            <Text style={styles.chatUserName}>{selectedChatData?.otherUserName}</Text>
+            <FastImage source={{ uri: selectedChatData?.otherUserAvatar }} style={dynamicStyles.chatAvatar} />
+            <Text style={dynamicStyles.chatUserName}>{selectedChatData?.otherUserName}</Text>
           </View>
 
           {/* Messages */}
-          <View style={[styles.messagesContainer, { height: availableHeight }]}>
+          <View style={[dynamicStyles.messagesContainer, { height: availableHeight }]}>
             <FlatList
               ref={flatListRef}
               data={chatMessages}
               renderItem={renderChatMessage}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.chatContainer}
+              contentContainerStyle={dynamicStyles.chatContainer}
               showsVerticalScrollIndicator={false}
               onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
               onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
@@ -229,7 +459,7 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
 
           {/* Message Input - Positioned absolutely above keyboard */}
           <View style={[
-            styles.messageInputContainer,
+            dynamicStyles.messageInputContainer,
             {
               position: 'absolute',
               bottom: keyboardHeight || 0,
@@ -237,18 +467,19 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
               right: 0,
             }
           ]}>
-            <TouchableOpacity style={styles.attachmentButton}>
-              <MaterialIcons name="attach-file" size={24} color="#8E8E93" />
+            <TouchableOpacity style={dynamicStyles.attachmentButton}>
+              <MaterialIcons name="attach-file" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
             <TextInput
-              style={styles.messageInput}
+              style={dynamicStyles.messageInput}
               placeholder="Type a message..."
+              placeholderTextColor={colors.inputPlaceholder}
               value={newMessage}
               onChangeText={setNewMessage}
               multiline
               maxLength={1000}
             />
-            <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
+            <TouchableOpacity style={dynamicStyles.sendButton} onPress={sendMessage}>
               <MaterialIcons name="send" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -258,24 +489,25 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
   }
 
   return (
-    <View style={styles.container}>
+    <View style={dynamicStyles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.headerIcon}>
-          <MaterialIcons name="arrow-back" size={24} color="#000000" />
+      <View style={dynamicStyles.header}>
+        <TouchableOpacity style={dynamicStyles.headerIcon}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Messages</Text>
-        <TouchableOpacity style={styles.headerIcon}>
-          <MaterialIcons name="add" size={24} color="#000000" />
+        <Text style={dynamicStyles.headerTitle}>Messages</Text>
+        <TouchableOpacity style={dynamicStyles.headerIcon}>
+          <MaterialIcons name="add" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <MaterialIcons name="search" size={20} color="#8E8E93" style={styles.searchIcon} />
+      <View style={dynamicStyles.searchContainer}>
+        <MaterialIcons name="search" size={20} color={colors.textSecondary} style={dynamicStyles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
+          style={dynamicStyles.searchInput}
           placeholder="Search messages"
+          placeholderTextColor={colors.inputPlaceholder}
           value={searchText}
           onChangeText={setSearchText}
         />
@@ -283,9 +515,9 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
 
       {/* Messages List */}
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#006175" />
-          <Text style={styles.loadingText}>Loading conversations...</Text>
+        <View style={dynamicStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={dynamicStyles.loadingText}>Loading conversations...</Text>
         </View>
       ) : (
         <FlatList
@@ -293,10 +525,10 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
           renderItem={renderConversation}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={dynamicStyles.listContainer}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No conversations yet. Start messaging!</Text>
+            <View style={dynamicStyles.emptyContainer}>
+              <Text style={dynamicStyles.emptyText}>No conversations yet. Start messaging!</Text>
             </View>
           }
         />
@@ -305,233 +537,9 @@ const MessagesScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  // Header styles
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  // Search styles
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 10,
-    marginHorizontal: 20,
-    marginVertical: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  searchIcon: {
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000000',
-  },
-  // Messages list styles
-  listContainer: {
-    paddingHorizontal: 20,
-  },
-  messageItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 15,
-  },
-  messageContent: {
-    flex: 1,
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  senderName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  unreadMessage: {
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FF3B30',
-  },
-  // Chat window styles
-  chatHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  chatAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 10,
-  },
-  chatUserName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  chatContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  chatMessageContainer: {
-    marginBottom: 15,
-    maxWidth: '80%',
-  },
-  senderMessage: {
-    alignSelf: 'flex-end',
-  },
-  receiverMessage: {
-    alignSelf: 'flex-start',
-  },
-  chatMessageText: {
-    padding: 12,
-    borderRadius: 18,
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  senderText: {
-    backgroundColor: '#FF3B30',
-    color: '#FFFFFF',
-  },
-  receiverText: {
-    backgroundColor: '#F2F2F7',
-    color: '#000000',
-  },
-  chatTimestamp: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 5,
-    textAlign: 'right',
-  },
-  // Message input styles
-  messageInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-  },
-  attachmentButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  messageInput: {
-    flex: 1,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    fontSize: 16,
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FF3B30',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 10,
-  },
-  messagesContainer: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#8E8E93',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
-  },
+// Static styles that don't depend on theme
+const staticStyles = StyleSheet.create({
+  // No static styles needed for MessagesScreen
 });
 
 export default MessagesScreen;

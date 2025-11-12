@@ -38,6 +38,8 @@ export type Database = {
           status: 'active' | 'suspended' | 'deleted';
           created_at: string;
           updated_at: string;
+          display_name_last_updated: string | null;
+          username_last_updated: string | null;
         };
         Insert: {
           id: string;
@@ -52,6 +54,8 @@ export type Database = {
           status?: 'active' | 'suspended' | 'deleted';
           created_at?: string;
           updated_at?: string;
+          display_name_last_updated?: string | null;
+          username_last_updated?: string | null;
         };
         Update: {
           id?: string;
@@ -66,6 +70,8 @@ export type Database = {
           status?: 'active' | 'suspended' | 'deleted';
           created_at?: string;
           updated_at?: string;
+          display_name_last_updated?: string | null;
+          username_last_updated?: string | null;
         };
       };
       posts: {

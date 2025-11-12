@@ -64,7 +64,7 @@ const AuthScreen: React.FC = () => {
     },
     buttonText: {
       ...typography.button,
-      color: '#FFFFFF',
+      color: colors.surface,
     },
     switchButton: {
       alignItems: 'center',
@@ -145,7 +145,7 @@ const AuthScreen: React.FC = () => {
         disabled={loading}
       >
         {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color={colors.surface} />
         ) : (
           <Text style={dynamicStyles.buttonText}>
             {isLogin ? 'Sign In' : 'Sign Up'}

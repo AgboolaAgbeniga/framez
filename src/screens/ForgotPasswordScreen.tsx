@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { typography, borderRadius, spacing } from '../lib/theme';
 
 interface ForgotPasswordScreenProps {
   onSendOTP: (email: string) => void;
@@ -18,8 +20,73 @@ interface ForgotPasswordScreenProps {
 
 const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onSendOTP, onBackToLogin }) => {
   const { resetPassword } = useSupabaseAuth();
+  const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollContainer: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xxxl,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: spacing.xxxl,
+    },
+    title: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      marginBottom: spacing.sm,
+    },
+    subtitle: {
+      ...typography.subtitle,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    inputContainer: {
+      marginBottom: spacing.xxxl,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: borderRadius.medium,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      fontSize: 16,
+      backgroundColor: colors.inputBackground,
+      color: colors.textPrimary,
+    },
+    sendButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.lg,
+      borderRadius: borderRadius.medium,
+      alignItems: 'center',
+      marginBottom: spacing.xl,
+    },
+    sendButtonText: {
+      ...typography.button,
+      color: '#FFFFFF',
+    },
+    backContainer: {
+      alignItems: 'center',
+    },
+    backText: {
+      color: colors.primary,
+      fontSize: 16,
+      fontWeight: '500',
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+  });
 
   const handleSendOTP = async () => {
     if (!email) {
@@ -54,17 +121,18 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onSendOTP, 
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Forgot Password</Text>
-        <Text style={styles.subtitle}>Enter your email address and we'll send you a verification code</Text>
+    <ScrollView style={dynamicStyles.container} contentContainerStyle={dynamicStyles.scrollContainer}>
+      <View style={dynamicStyles.header}>
+        <Text style={dynamicStyles.title}>Forgot Password</Text>
+        <Text style={dynamicStyles.subtitle}>Enter your email address and we'll send you a verification code</Text>
       </View>
 
       {/* Email Input */}
-      <View style={styles.inputContainer}>
+      <View style={dynamicStyles.inputContainer}>
         <TextInput
-          style={styles.input}
+          style={dynamicStyles.input}
           placeholder="Email"
+          placeholderTextColor={colors.inputPlaceholder}
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -75,87 +143,28 @@ const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({ onSendOTP, 
 
       {/* Send OTP Button */}
       <TouchableOpacity
-        style={[styles.sendButton, loading && styles.buttonDisabled]}
+        style={[dynamicStyles.sendButton, loading && dynamicStyles.buttonDisabled]}
         onPress={handleSendOTP}
         disabled={loading}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" />
         ) : (
-          <Text style={styles.sendButtonText}>Send Reset Email</Text>
+          <Text style={dynamicStyles.sendButtonText}>Send Reset Email</Text>
         )}
       </TouchableOpacity>
 
       {/* Back to Login */}
-      <TouchableOpacity style={styles.backContainer} onPress={onBackToLogin}>
-        <Text style={styles.backText}>Back to Login</Text>
+      <TouchableOpacity style={dynamicStyles.backContainer} onPress={onBackToLogin}>
+        <Text style={dynamicStyles.backText}>Back to Login</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  inputContainer: {
-    marginBottom: 30,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: '#FAFAFA',
-  },
-  sendButton: {
-    backgroundColor: '#006175',
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  sendButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  backContainer: {
-    alignItems: 'center',
-  },
-  backText: {
-    color: '#006175',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
+// Static styles that don't depend on theme
+const staticStyles = StyleSheet.create({
+  // No static styles needed for ForgotPasswordScreen
 });
 
 export default ForgotPasswordScreen;

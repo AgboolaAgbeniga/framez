@@ -63,3 +63,14 @@ export interface Message {
     avatarUrl?: string;
   } | null;
 }
+
+export interface Story {
+  _id: string;
+  userId: string;
+  imageUrl: string;
+  timestamp: number;
+  user?: {
+    name: string;
+    avatarUrl?: string;
+  } | null;
+}

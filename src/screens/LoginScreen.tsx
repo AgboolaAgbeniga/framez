@@ -10,7 +10,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { loginSchema, type LoginFormData } from '../lib/validations';
+import { typography, borderRadius, spacing } from '../lib/theme';
 
 interface LoginScreenProps {
   onSignUp: () => void;
@@ -20,12 +22,99 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onSignUp, onLogin, onForgotPassword }) => {
   const { signIn } = useSupabaseAuth();
+  const { colors } = useTheme();
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
   });
   const [errors, setErrors] = useState<Partial<LoginFormData>>({});
   const [loading, setLoading] = useState(false);
+
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollContainer: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xxxl,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: spacing.xxxl,
+    },
+    title: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      marginBottom: spacing.sm,
+    },
+    subtitle: {
+      ...typography.subtitle,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    inputContainer: {
+      marginBottom: spacing.xl,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      borderRadius: borderRadius.medium,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      fontSize: 16,
+      marginBottom: spacing.lg,
+      backgroundColor: colors.inputBackground,
+      color: colors.textPrimary,
+    },
+    forgotPasswordContainer: {
+      alignSelf: 'flex-end',
+      marginBottom: spacing.xxxl,
+    },
+    forgotPasswordText: {
+      color: colors.primary,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    loginButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.lg,
+      borderRadius: borderRadius.medium,
+      alignItems: 'center',
+      marginBottom: spacing.xl,
+    },
+    loginButtonText: {
+      ...typography.button,
+      color: colors.surface,
+    },
+    signUpContainer: {
+      alignItems: 'center',
+    },
+    signUpText: {
+      ...typography.body,
+      color: colors.textSecondary,
+    },
+    signUpLink: {
+      color: colors.primary,
+      fontWeight: 'bold',
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    inputError: {
+      borderColor: colors.error,
+      borderWidth: 1,
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 12,
+      marginTop: spacing.xs,
+      marginBottom: spacing.sm,
+    },
+  });
 
   const validateForm = (): boolean => {
     try {
@@ -64,17 +153,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onSignUp, onLogin, onForgotPa
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContainer}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Sign in to your Framez account</Text>
+    <ScrollView style={dynamicStyles.container} contentContainerStyle={dynamicStyles.scrollContainer}>
+      <View style={dynamicStyles.header}>
+        <Text style={dynamicStyles.title}>Welcome Back</Text>
+        <Text style={dynamicStyles.subtitle}>Sign in to your Framez account</Text>
       </View>
 
       {/* Input Fields */}
-      <View style={styles.inputContainer}>
+      <View style={dynamicStyles.inputContainer}>
         <TextInput
-          style={[styles.input, errors.email && styles.inputError]}
+          style={[dynamicStyles.input, errors.email && dynamicStyles.inputError]}
           placeholder="Email"
+          placeholderTextColor={colors.inputPlaceholder}
           value={formData.email}
           onChangeText={(value) => {
             setFormData(prev => ({ ...prev, email: value }));
@@ -84,11 +174,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onSignUp, onLogin, onForgotPa
           autoCapitalize="none"
           autoCorrect={false}
         />
-        {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+        {errors.email && <Text style={dynamicStyles.errorText}>{errors.email}</Text>}
 
         <TextInput
-          style={[styles.input, errors.password && styles.inputError]}
+          style={[dynamicStyles.input, errors.password && dynamicStyles.inputError]}
           placeholder="Password"
+          placeholderTextColor={colors.inputPlaceholder}
           value={formData.password}
           onChangeText={(value) => {
             setFormData(prev => ({ ...prev, password: value }));
@@ -97,121 +188,40 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onSignUp, onLogin, onForgotPa
           secureTextEntry
           autoCapitalize="none"
         />
-        {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+        {errors.password && <Text style={dynamicStyles.errorText}>{errors.password}</Text>}
       </View>
 
       {/* Forgot Password */}
-      <TouchableOpacity style={styles.forgotPasswordContainer} onPress={onForgotPassword}>
-        <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+      <TouchableOpacity style={dynamicStyles.forgotPasswordContainer} onPress={onForgotPassword}>
+        <Text style={dynamicStyles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
 
       {/* Login Button */}
       <TouchableOpacity
-        style={[styles.loginButton, loading && styles.buttonDisabled]}
+        style={[dynamicStyles.loginButton, loading && dynamicStyles.buttonDisabled]}
         onPress={handleLogin}
         disabled={loading}
       >
         {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color={colors.surface} />
         ) : (
-          <Text style={styles.loginButtonText}>Sign In</Text>
+          <Text style={dynamicStyles.loginButtonText}>Sign In</Text>
         )}
       </TouchableOpacity>
 
       {/* Sign Up Link */}
-      <TouchableOpacity style={styles.signUpContainer} onPress={onSignUp}>
-        <Text style={styles.signUpText}>
-          Don't have an account? <Text style={styles.signUpLink}>Sign Up</Text>
+      <TouchableOpacity style={dynamicStyles.signUpContainer} onPress={onSignUp}>
+        <Text style={dynamicStyles.signUpText}>
+          Don't have an account? <Text style={dynamicStyles.signUpLink}>Sign Up</Text>
         </Text>
       </TouchableOpacity>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    marginBottom: 16,
-    backgroundColor: '#FAFAFA',
-  },
-  forgotPasswordContainer: {
-    alignSelf: 'flex-end',
-    marginBottom: 30,
-  },
-  forgotPasswordText: {
-    color: '#00A8A8',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  loginButton: {
-    backgroundColor: '#006175',
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  signUpContainer: {
-    alignItems: 'center',
-  },
-  signUpText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  signUpLink: {
-    color: '#00A8A8',
-    fontWeight: 'bold',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  inputError: {
-    borderColor: '#FF3B30',
-    borderWidth: 1,
-  },
-  errorText: {
-    color: '#FF3B30',
-    fontSize: 12,
-    marginTop: 4,
-    marginBottom: 8,
-  },
+// Static styles that don't depend on theme
+const staticStyles = StyleSheet.create({
+  // No static styles needed for LoginScreen
 });
 
 export default LoginScreen;

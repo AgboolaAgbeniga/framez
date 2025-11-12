@@ -41,17 +41,17 @@ export interface ThemeColors {
 
 export const lightTheme: ThemeColors = {
   // Primary Palette
-  primary: '#8AC5A7',
-  secondary: '#E8DD73',
-  accent: '#B8D8C9',
+  primary: '#4A90E2',
+  secondary: '#50E3C2',
+  accent: '#B3D4FC',
 
   // Backgrounds
-  background: '#F0EBD8',
-  surface: '#D2CBAF',
+  background: '#F5F9FF',
+  surface: '#E3ECF8',
 
   // Text
-  textPrimary: '#222021',
-  textSecondary: '#555454',
+  textPrimary: '#1C1C1E',
+  textSecondary: '#5E6C84',
 
   // Semantic
   error: '#E35B5B',
@@ -65,7 +65,7 @@ export const lightTheme: ThemeColors = {
   cardShadow: 'rgba(0, 0, 0, 0.08)',
   divider: 'rgba(0, 0, 0, 0.1)',
   inputBackground: 'rgba(255, 255, 255, 0.8)',
-  inputBorder: '#B8D8C9',
+  inputBorder: '#B3D4FC',
   inputPlaceholder: '#888888',
 
   // Navigation
@@ -73,19 +73,19 @@ export const lightTheme: ThemeColors = {
   navBorder: 'rgba(255, 255, 255, 0.3)',
 
   // Interactive states
-  ripple: 'rgba(138, 197, 167, 0.2)',
-  focus: '#8AC5A7',
+  ripple: 'rgba(74, 144, 226, 0.2)',
+  focus: '#4A90E2',
 };
 
 export const darkTheme: ThemeColors = {
   // Primary Palette
-  primary: '#6FB294',
-  secondary: '#D6C85E',
-  accent: '#9FC2B0',
+  primary: '#357ABD',
+  secondary: '#3CBFAE',
+  accent: '#8AB4F8',
 
   // Backgrounds
-  background: '#1A1A1A',
-  surface: '#2A2A2A',
+  background: '#121212',
+  surface: '#1E1E1E',
 
   // Text
   textPrimary: '#F2F2F2',
@@ -107,12 +107,12 @@ export const darkTheme: ThemeColors = {
   inputPlaceholder: '#AAAAAA',
 
   // Navigation
-  navBackground: 'rgba(0, 0, 0, 0.35)',
+  navBackground: 'rgba(0, 0, 0, 0.80)',
   navBorder: 'rgba(255, 255, 255, 0.1)',
 
   // Interactive states
-  ripple: 'rgba(111, 178, 148, 0.2)',
-  focus: '#6FB294',
+  ripple: 'rgba(53, 122, 189, 0.2)',
+  focus: '#357ABD',
 };
 
 export const getTheme = (mode: ThemeMode): ThemeColors => {
@@ -121,10 +121,15 @@ export const getTheme = (mode: ThemeMode): ThemeColors => {
 
 // Typography configuration
 export const typography = {
+  appName: {
+    fontFamily: 'CaesarDressing-Regular',
+    fontSize: 48,
+    fontWeight: '400' as const,
+  },
   headline: {
-    fontFamily: 'Poppins-Bold',
+    fontFamily: 'CaesarDressing-Regular',
     fontSize: 24,
-    fontWeight: '700' as const,
+    fontWeight: '400' as const,
   },
   subtitle: {
     fontFamily: 'Poppins-Medium',
@@ -137,14 +142,14 @@ export const typography = {
     fontWeight: '400' as const,
   },
   caption: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'Inter-Light',
     fontSize: 12,
-    fontWeight: '400' as const,
+    fontWeight: '300' as const,
   },
   button: {
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: 'Poppins-Medium',
     fontSize: 14,
-    fontWeight: '600' as const,
+    fontWeight: '500' as const,
   },
 };
 

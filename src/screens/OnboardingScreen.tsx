@@ -7,6 +7,8 @@ import {
   Dimensions,
   ScrollView,
 } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
+import { typography, borderRadius, spacing } from '../lib/theme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -16,7 +18,108 @@ interface OnboardingScreenProps {
 }
 
 const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish, onSignIn }) => {
+  const { colors } = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
+
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollContainer: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.xxxl,
+    },
+    illustrationContainer: {
+      marginBottom: spacing.xxxl,
+    },
+    illustration: {
+      fontSize: 100,
+    },
+    title: {
+      ...typography.headline,
+      color: colors.textPrimary,
+      textAlign: 'center',
+      marginBottom: spacing.lg,
+    },
+    subtitle: {
+      ...typography.subtitle,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 24,
+      marginBottom: spacing.xxxl,
+    },
+    dotsContainer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      marginBottom: spacing.xxxl,
+    },
+    dot: {
+      width: 8,
+      height: 8,
+      borderRadius: borderRadius.small,
+      backgroundColor: colors.inputBorder,
+      marginHorizontal: spacing.xs,
+    },
+    activeDot: {
+      backgroundColor: colors.primary,
+      width: 24,
+    },
+    buttonContainer: {
+      flexDirection: 'column',
+      alignItems: 'center',
+      width: '100%',
+      paddingHorizontal: spacing.xl,
+    },
+    skipButton: {
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      borderRadius: borderRadius.medium,
+      width: width * 0.8,
+      maxWidth: 321,
+    },
+    skipText: {
+      color: colors.textSecondary,
+      fontSize: 16,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    nextButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.xl,
+      borderRadius: borderRadius.medium,
+      marginBottom: spacing.sm,
+      width: width * 0.8,
+      maxWidth: 321,
+    },
+    nextText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: 'bold',
+      textAlign: 'center',
+    },
+    signInContainer: {
+      marginTop: spacing.xl,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    signInText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+    },
+    signInLink: {
+      color: colors.primary,
+      fontSize: 14,
+      textDecorationLine: 'underline',
+    },
+  });
 
   const screens = [
     {
@@ -50,13 +153,13 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish, onSignIn 
 
   const renderDots = () => {
     return (
-      <View style={styles.dotsContainer}>
+      <View style={dynamicStyles.dotsContainer}>
         {screens.map((_, index) => (
           <View
             key={index}
             style={[
-              styles.dot,
-              index === currentStep && styles.activeDot,
+              dynamicStyles.dot,
+              index === currentStep && dynamicStyles.activeDot,
             ]}
           />
         ))}
@@ -67,41 +170,41 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish, onSignIn 
   const currentScreen = screens[currentStep];
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+    <View style={dynamicStyles.container}>
+      <ScrollView contentContainerStyle={dynamicStyles.scrollContainer}>
         {/* Illustration */}
-        <View style={styles.illustrationContainer}>
-          <Text style={styles.illustration}>{currentScreen.illustration}</Text>
+        <View style={dynamicStyles.illustrationContainer}>
+          <Text style={staticStyles.illustration}>{currentScreen.illustration}</Text>
         </View>
 
         {/* Title */}
-        <Text style={styles.title}>{currentScreen.title}</Text>
+        <Text style={dynamicStyles.title}>{currentScreen.title}</Text>
 
         {/* Subtitle */}
-        <Text style={styles.subtitle}>{currentScreen.subtitle}</Text>
+        <Text style={dynamicStyles.subtitle}>{currentScreen.subtitle}</Text>
 
         {/* Dots */}
         {renderDots()}
 
         {/* Buttons */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-            <Text style={styles.nextText}>
+        <View style={dynamicStyles.buttonContainer}>
+          <TouchableOpacity style={dynamicStyles.nextButton} onPress={handleNext}>
+            <Text style={dynamicStyles.nextText}>
               {currentStep === screens.length - 1 ? 'Get Started' : 'Next'}
             </Text>
           </TouchableOpacity>
           {currentStep < screens.length - 1 && (
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-              <Text style={styles.skipText}>Skip</Text>
+            <TouchableOpacity style={dynamicStyles.skipButton} onPress={handleSkip}>
+              <Text style={dynamicStyles.skipText}>Skip</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* Sign in text */}
-        <View style={styles.signInContainer}>
-          <Text style={styles.signInText}>Already have an account? </Text>
+        <View style={dynamicStyles.signInContainer}>
+          <Text style={dynamicStyles.signInText}>Already have an account? </Text>
           <TouchableOpacity onPress={onSignIn}>
-            <Text style={styles.signInLink}>Sign in</Text>
+            <Text style={dynamicStyles.signInLink}>Sign in</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -109,105 +212,10 @@ const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onFinish, onSignIn 
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
-  },
-  illustrationContainer: {
-    marginBottom: 40,
-  },
+// Static styles that don't depend on theme
+const staticStyles = StyleSheet.create({
   illustration: {
     fontSize: 100,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 16,
-    fontFamily: 'Inter-Bold', // Assuming Inter is available
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 40,
-    fontFamily: 'Inter-Regular',
-  },
-  dotsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 40,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E0E0E0',
-    marginHorizontal: 4,
-  },
-  activeDot: {
-    backgroundColor: '#006175',
-    width: 24,
-  },
-  buttonContainer: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    width: '100%',
-    paddingHorizontal: 20,
-  },
-  skipButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
-    width: width * 0.8, // 80% of screen width
-    maxWidth: 321, // Maximum width
-  },
-  skipText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  nextButton: {
-    backgroundColor: '#006175',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-    marginBottom: 10,
-    width: width * 0.8, // 80% of screen width
-    maxWidth: 321, // Maximum width
-  },
-  nextText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  signInContainer: {
-    marginTop: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  signInText: {
-    color: '#666',
-    fontSize: 14,
-  },
-  signInLink: {
-    color: '#006175',
-    fontSize: 14,
-    textDecorationLine: 'underline',
   },
 });
 

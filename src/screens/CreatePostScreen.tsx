@@ -19,6 +19,8 @@ import { createPostSchema, type CreatePostFormData } from '../lib/validations';
 import { uploadPostImage, validateFile } from '../lib/storage';
 import { useCreatePost } from '../lib/queries';
 import { addToUploadQueue } from '../lib/backgroundUpload';
+import { supabase } from '../lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
 import FastImage from '../components/FastImage';
 
 
@@ -27,6 +29,7 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user } = useSupabaseAuth();
   const { colors } = useTheme();
   const createPostMutation = useCreatePost();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState<CreatePostFormData>({
     content: '',
   });
@@ -95,12 +98,11 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     },
     textInput: {
       borderWidth: 1,
-      borderColor: colors.inputBorder,
+      borderColor: colors.accent, // accent border as per styleguide
       borderRadius: borderRadius.medium,
       padding: spacing.lg,
       fontSize: 14,
       marginBottom: 20,
-      textAlignVertical: 'top',
       minHeight: 120,
       backgroundColor: colors.inputBackground,
       color: colors.textPrimary,
@@ -134,7 +136,7 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       position: 'absolute',
       top: 10,
       right: 10,
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      backgroundColor: colors.cardShadow,
       borderRadius: 15,
       width: 30,
       height: 30,
@@ -153,8 +155,7 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     },
     cancelButton: {
       flex: 1,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
+      backgroundColor: colors.surface, // surface background as per styleguide
       borderRadius: borderRadius.medium,
       padding: spacing.lg,
       alignItems: 'center',
@@ -251,27 +252,46 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         visibility: 'public',
       });
 
-      // If there's an image, queue it for background upload
+      // If there's an image, upload it immediately for web compatibility
       if (imageUri && createdPost?.id) {
         try {
-          // Validate file before queuing
+          console.log('Uploading image immediately...');
+          // Validate file before uploading
           const validation = await validateFile(imageUri);
           if (!validation.valid) {
+            console.error('File validation failed:', validation.error);
             Alert.alert('Warning', `Post created but image upload failed: ${validation.error}`);
           } else {
-            // Add to background upload queue
-            await addToUploadQueue({
-              id: `upload_${createdPost.id}_${Date.now()}`,
-              userId: user.id,
-              localUri: imageUri,
-              postId: createdPost.id,
-              timestamp: Date.now(),
-            });
+            console.log('File validation passed, uploading...');
+            // Upload immediately instead of queuing
+            const uploadResult = await uploadPostImage(user.id, imageUri);
+            console.log('Upload result:', uploadResult);
 
-            console.log('Image queued for background upload');
+            if (uploadResult.success && uploadResult.data?.publicUrl) {
+              console.log('Upload successful, updating post with image URL:', uploadResult.data.publicUrl);
+              // Update the post with the real image URL
+              const { error: updateError } = await supabase
+                .from('posts')
+                .update({
+                  image_urls: [uploadResult.data.publicUrl]
+                })
+                .eq('id', createdPost.id);
+
+              if (updateError) {
+                console.error('Failed to update post with image URL:', updateError);
+                Alert.alert('Warning', 'Post created but image may not display properly');
+              } else {
+                console.log('Image uploaded and post updated successfully');
+                // Invalidate queries to refresh the feed
+                queryClient.invalidateQueries({ queryKey: ['posts'] });
+              }
+            } else {
+              console.error('Image upload failed:', uploadResult.error);
+              Alert.alert('Warning', 'Post created but image upload failed');
+            }
           }
-        } catch (queueError) {
-          console.warn('Failed to queue image upload:', queueError);
+        } catch (uploadError) {
+          console.warn('Failed to upload image:', uploadError);
           Alert.alert('Warning', 'Post created but image may not upload properly');
         }
       }
@@ -330,7 +350,6 @@ const CreatePostScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           }}
           multiline
           numberOfLines={6}
-          textAlignVertical="top"
         />
         {errors.content && <Text style={dynamicStyles.errorText}>{errors.content}</Text>}
 

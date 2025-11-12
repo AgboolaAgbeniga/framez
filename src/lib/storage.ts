@@ -1,10 +1,13 @@
 import { supabase } from './supabase';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
 
 // Storage bucket names
 export const STORAGE_BUCKETS = {
   AVATARS: 'avatars',
   POSTS: 'posts',
   MESSAGES: 'messages',
+  STORIES: 'stories',
 } as const;
 
 /**
@@ -25,13 +28,53 @@ export const uploadFile = async (
   }
 ) => {
   try {
-    // Convert URI to blob for upload
-    const response = await fetch(file);
-    const blob = await response.blob();
+    console.log('Starting file upload for:', file);
 
+    // Check if we're in React Native (iOS or Android) or web
+    const isReactNative = Platform.OS === 'ios' || Platform.OS === 'android';
+    
+    let uploadData: Blob | Uint8Array | ArrayBuffer;
+    
+    if (isReactNative) {
+      // React Native environment - use FileSystem to read file
+      console.log('Detected React Native environment, using FileSystem');
+      const fileInfo = await FileSystem.getInfoAsync(file);
+      if (!fileInfo.exists) {
+        throw new Error('File does not exist');
+      }
+      
+      // Read file as base64
+      const base64Data = await FileSystem.readAsStringAsync(file, { encoding: 'base64' });
+      console.log('File read as base64, length:', base64Data.length);
+      
+      // Convert base64 to Uint8Array (Supabase accepts this in React Native)
+      // atob should be available in Expo/React Native (polyfilled)
+      if (typeof atob === 'undefined') {
+        throw new Error('atob is not available. Please ensure you are using a compatible React Native environment.');
+      }
+      
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      uploadData = bytes;
+      console.log('Converted to Uint8Array, size:', bytes.length);
+    } else {
+      // Web environment - use fetch and blob
+      console.log('Detected web environment, using fetch');
+      const response = await fetch(file);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+      uploadData = await response.blob();
+      console.log('Blob created, size:', (uploadData as Blob).size);
+    }
+
+    console.log('Uploading to Supabase storage...');
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(path, blob, {
+      .upload(path, uploadData, {
         contentType: fileOptions?.contentType || 'image/jpeg',
         cacheControl: fileOptions?.cacheControl || '3600',
         upsert: false,
@@ -42,11 +85,13 @@ export const uploadFile = async (
       throw error;
     }
 
+    console.log('Upload successful, getting public URL...');
     // Get public URL
     const { data: urlData } = supabase.storage
       .from(bucket)
       .getPublicUrl(path);
 
+    console.log('Public URL obtained:', urlData.publicUrl);
     return {
       success: true,
       data: {
@@ -122,17 +167,52 @@ export const uploadAvatar = async (userId: string, fileUri: string) => {
 };
 
 /**
+ * Get content type from file URI
+ * @param fileUri - The file URI
+ * @returns Content type string
+ */
+const getContentTypeFromUri = (fileUri: string): string => {
+  const uriLower = fileUri.toLowerCase();
+  if (uriLower.endsWith('.png')) {
+    return 'image/png';
+  } else if (uriLower.endsWith('.jpg') || uriLower.endsWith('.jpeg')) {
+    return 'image/jpeg';
+  } else if (uriLower.endsWith('.gif')) {
+    return 'image/gif';
+  } else if (uriLower.endsWith('.webp')) {
+    return 'image/webp';
+  }
+  return 'image/jpeg'; // default
+};
+
+/**
+ * Get file extension from URI
+ * @param fileUri - The file URI
+ * @returns File extension (without dot)
+ */
+const getFileExtension = (fileUri: string): string => {
+  const uriLower = fileUri.toLowerCase();
+  if (uriLower.endsWith('.png')) return 'png';
+  if (uriLower.endsWith('.jpg') || uriLower.endsWith('.jpeg')) return 'jpg';
+  if (uriLower.endsWith('.gif')) return 'gif';
+  if (uriLower.endsWith('.webp')) return 'webp';
+  return 'jpg'; // default
+};
+
+/**
  * Upload post image
  * @param userId - The user ID
  * @param fileUri - The image file URI
  * @returns Promise with upload result
  */
 export const uploadPostImage = async (userId: string, fileUri: string) => {
-  const fileName = `${Date.now()}.jpg`;
+  const extension = getFileExtension(fileUri);
+  const fileName = `${Date.now()}.${extension}`;
   const path = `${userId}/${fileName}`;
+  const contentType = getContentTypeFromUri(fileUri);
 
   return await uploadFile(STORAGE_BUCKETS.POSTS, path, fileUri, {
-    contentType: 'image/jpeg',
+    contentType,
   });
 };
 
@@ -160,6 +240,21 @@ export const uploadMessageAttachment = async (
 
   return await uploadFile(STORAGE_BUCKETS.MESSAGES, path, fileUri, {
     contentType,
+  });
+};
+
+/**
+ * Upload story image
+ * @param userId - The user ID
+ * @param fileUri - The image file URI
+ * @returns Promise with upload result
+ */
+export const uploadStoryImage = async (userId: string, fileUri: string) => {
+  const fileName = `${Date.now()}.jpg`;
+  const path = `${userId}/${fileName}`;
+
+  return await uploadFile(STORAGE_BUCKETS.STORIES, path, fileUri, {
+    contentType: 'image/jpeg',
   });
 };
 
@@ -194,13 +289,51 @@ export const validateFile = async (
   } = {}
 ): Promise<{ valid: boolean; error?: string }> => {
   try {
-    const { maxSizeMB = 10, allowedTypes = ['image/jpeg', 'image/png', 'image/gif'] } = options;
+    const { maxSizeMB = 10, allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'] } = options;
+    const isReactNative = Platform.OS === 'ios' || Platform.OS === 'android';
 
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
+    let fileSize: number;
+    let mimeType: string;
+
+    if (isReactNative) {
+      // React Native: use FileSystem
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (!fileInfo.exists) {
+        return {
+          valid: false,
+          error: 'File does not exist',
+        };
+      }
+      
+      fileSize = fileInfo.size || 0;
+      
+      // Determine MIME type from file extension
+      const uriLower = fileUri.toLowerCase();
+      if (uriLower.endsWith('.png')) {
+        mimeType = 'image/png';
+      } else if (uriLower.endsWith('.jpg') || uriLower.endsWith('.jpeg')) {
+        mimeType = 'image/jpeg';
+      } else if (uriLower.endsWith('.gif')) {
+        mimeType = 'image/gif';
+      } else {
+        mimeType = 'image/jpeg'; // default
+      }
+    } else {
+      // Web: use fetch
+      const response = await fetch(fileUri);
+      if (!response.ok) {
+        return {
+          valid: false,
+          error: 'Failed to fetch file for validation',
+        };
+      }
+      const blob = await response.blob();
+      fileSize = blob.size;
+      mimeType = blob.type || 'image/jpeg';
+    }
 
     // Check file size
-    const sizeMB = blob.size / (1024 * 1024);
+    const sizeMB = fileSize / (1024 * 1024);
     if (sizeMB > maxSizeMB) {
       return {
         valid: false,
@@ -208,8 +341,11 @@ export const validateFile = async (
       };
     }
 
-    // Check file type
-    if (!allowedTypes.includes(blob.type)) {
+    // Check file type (normalize mime types)
+    const normalizedMimeType = mimeType.toLowerCase();
+    const normalizedAllowedTypes = allowedTypes.map(t => t.toLowerCase());
+    
+    if (!normalizedAllowedTypes.includes(normalizedMimeType)) {
       return {
         valid: false,
         error: `File type not allowed. Allowed types: ${allowedTypes.join(', ')}`,
@@ -218,9 +354,10 @@ export const validateFile = async (
 
     return { valid: true };
   } catch (error) {
+    console.error('Validation error:', error);
     return {
       valid: false,
-      error: 'Failed to validate file',
+      error: error instanceof Error ? error.message : 'Failed to validate file',
     };
   }
 };

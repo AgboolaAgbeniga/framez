@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
-import { Post, Comment } from '../types';
+import { Post, Comment, Story } from '../types';
 
 // Query Keys
 export const queryKeys = {
@@ -12,6 +12,8 @@ export const queryKeys = {
   conversations: ['conversations'] as const,
   messages: (conversationId: string) => ['messages', conversationId] as const,
   likes: (postId: string) => ['likes', postId] as const,
+  stories: ['stories'] as const,
+  userStories: (userId: string) => ['stories', 'user', userId] as const,
 };
 
 // Posts Queries
@@ -58,7 +60,7 @@ export const usePosts = () => {
             timestamp: new Date(post.created_at).getTime(),
             user: {
               name: post.profiles?.display_name || 'Unknown User',
-              avatarUrl: post.profiles?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+              avatarUrl: post.profiles?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
             },
             likesCount: likesResult.count || 0,
             commentsCount: commentsResult.count || 0,
@@ -92,7 +94,7 @@ export const useUserPosts = (userId: string) => {
         timestamp: new Date(post.created_at).getTime(),
         user: {
           name: 'Current User', // Will be filled by profile query
-          avatarUrl: 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+          avatarUrl: 'https://avatar.iran.liara.run/public/boy',
         },
       }));
     },
@@ -137,7 +139,7 @@ export const usePost = (postId: string) => {
         timestamp: new Date(data.created_at).getTime(),
         user: {
           name: (data.profiles as any)?.display_name || 'Unknown User',
-          avatarUrl: (data.profiles as any)?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+          avatarUrl: (data.profiles as any)?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
         },
         likesCount: likesResult.count || 0,
         commentsCount: commentsResult.count || 0,
@@ -198,7 +200,7 @@ export const useComments = (postId: string) => {
         timestamp: new Date(comment.created_at).getTime(),
         user: {
           name: (comment.profiles as any)?.display_name || 'Unknown User',
-          avatarUrl: (comment.profiles as any)?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+          avatarUrl: (comment.profiles as any)?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
         },
       }));
     },
@@ -271,7 +273,7 @@ export const useConversations = (userId?: string) => {
             id: conversationId,
             otherUserId,
             otherUserName: otherUser?.display_name || 'Unknown User',
-            otherUserAvatar: otherUser?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+            otherUserAvatar: otherUser?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
             lastMessage: msg.content,
             timestamp: new Date(msg.created_at).getTime(),
             unread: !msg.isSent, // Simplified - in real app you'd track read status
@@ -360,7 +362,7 @@ export const useCreatePost = () => {
         timestamp: new Date(newPost.created_at).getTime(),
         user: {
           name: 'Current User', // This will be updated when the query refetches
-          avatarUrl: 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+          avatarUrl: 'https://avatar.iran.liara.run/public/boy',
         },
         likesCount: 0,
         commentsCount: 0,
@@ -439,6 +441,30 @@ export const useAddComment = () => {
   });
 };
 
+export const useDeletePost = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId);
+
+      if (error) throw error;
+      return postId;
+    },
+    onSuccess: (postId) => {
+      // Remove the post from the cache
+      queryClient.setQueryData(queryKeys.posts, (oldPosts: any[] = []) => {
+        return oldPosts.filter(post => post._id !== postId);
+      });
+      // Also invalidate user posts if needed
+      queryClient.invalidateQueries({ queryKey: ['posts', 'user'] });
+    },
+  });
+};
+
 export const useSendMessage = () => {
   const queryClient = useQueryClient();
 
@@ -462,6 +488,119 @@ export const useSendMessage = () => {
       const conversationId = [variables.senderId, variables.receiverId].sort().join('_');
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    },
+  });
+};
+
+// Stories Queries
+export const useStories = (userId?: string) => {
+  return useQuery({
+    queryKey: queryKeys.stories,
+    queryFn: async () => {
+      if (!userId) return [];
+
+      // Get followers and following
+      const { data: followers, error: followersError } = await supabase
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', userId);
+
+      const { data: following, error: followingError } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', userId);
+
+      if (followersError || followingError) {
+        console.error('Error fetching follows:', followersError || followingError);
+        return [];
+      }
+
+      const followerIds = followers?.map(f => f.follower_id) || [];
+      const followingIds = following?.map(f => f.following_id) || [];
+      const relevantUserIds = [...new Set([...followerIds, ...followingIds, userId])];
+
+      // Get stories from relevant users (within last 24 hours)
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const { data: stories, error: storiesError } = await supabase
+        .from('stories')
+        .select(`
+          id,
+          image_url,
+          created_at,
+          user_id,
+          profiles:user_id (
+            id,
+            display_name,
+            avatar_url
+          )
+        `)
+        .in('user_id', relevantUserIds)
+        .gte('created_at', yesterday.toISOString())
+        .order('created_at', { ascending: false });
+
+      if (storiesError) {
+        console.error('Error fetching stories:', storiesError);
+        return [];
+      }
+
+      // Group stories by user and get latest story per user
+      const userStoriesMap = new Map<string, Story>();
+
+      stories?.forEach((story: any) => {
+        const userId = story.user_id;
+        if (!userStoriesMap.has(userId)) {
+          userStoriesMap.set(userId, {
+            _id: story.id,
+            userId: story.user_id,
+            imageUrl: story.image_url,
+            timestamp: new Date(story.created_at).getTime(),
+            user: {
+              name: story.profiles?.display_name || 'Unknown User',
+              avatarUrl: story.profiles?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
+            },
+          });
+        }
+      });
+
+      return Array.from(userStoriesMap.values());
+    },
+    enabled: !!userId,
+  });
+};
+
+export const useCreateStory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (imageUri: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // First upload the image
+      const { uploadStoryImage } = await import('./storage');
+      const uploadResult = await uploadStoryImage(user.id, imageUri);
+
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || 'Upload failed');
+      }
+
+      // Then create the story record
+      const { data, error } = await supabase
+        .from('stories')
+        .insert({
+          user_id: user.id,
+          image_url: uploadResult.data?.publicUrl,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.stories });
     },
   });
 };

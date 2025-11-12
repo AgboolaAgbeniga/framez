@@ -35,6 +35,37 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 50,
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.lg,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    listContainer: {
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.xl,
+    },
+    notificationItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.lg,
+      marginVertical: spacing.xs,
+      borderRadius: borderRadius.medium,
+      shadowColor: colors.cardShadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 1,
+    },
+  });
+
   useEffect(() => {
     if (user?.id) {
       fetchNotifications();
@@ -84,7 +115,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         created_at: notification.created_at,
         user: {
           name: notification.profiles?.display_name || 'Unknown User',
-          avatarUrl: notification.profiles?.avatar_url || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+          avatarUrl: notification.profiles?.avatar_url || 'https://avatar.iran.liara.run/public/boy',
         },
       }));
 
@@ -159,7 +190,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const renderNotification = ({ item }: { item: Notification }) => (
     <TouchableOpacity
       style={[
-        styles.notificationItem,
+        dynamicStyles.notificationItem,
         { backgroundColor: colors.surface },
         !item.is_read && { backgroundColor: colors.accent + '20' } // Slight accent tint for unread
       ]}
@@ -174,7 +205,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           />
         </View>
         {item.user && (
-          <Image source={{ uri: item.user.avatarUrl }} style={styles.userAvatar} />
+          <Image source={{ uri: item.user.avatarUrl || 'https://avatar.iran.liara.run/public/boy' }} style={styles.userAvatar} />
         )}
       </View>
 
@@ -204,7 +235,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.header}>
+        <View style={dynamicStyles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIcon}>
             <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
@@ -224,7 +255,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={dynamicStyles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIcon}>
           <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -238,7 +269,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         renderItem={renderNotification}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={dynamicStyles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialIcons name="notifications-none" size={64} color={colors.textSecondary} />
@@ -259,16 +290,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
   headerIcon: {
     width: 40,
     height: 40,
@@ -280,14 +301,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   listContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   notificationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    marginVertical: 4,
+    padding: spacing.lg,
+    marginVertical: spacing.xs,
     borderRadius: borderRadius.medium,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

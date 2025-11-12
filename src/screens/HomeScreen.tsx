@@ -11,8 +11,9 @@ import {
   Alert,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { usePosts, useLikePost } from '../lib/queries';
-import { Post } from '../types';
+import * as ImagePicker from 'expo-image-picker';
+import { usePosts, useLikePost, useStories, useCreateStory, useDeletePost } from '../lib/queries';
+import { Post, Story } from '../types';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { typography, borderRadius, spacing } from '../lib/theme';
@@ -45,7 +46,10 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { colors } = useTheme();
   const [searchText, setSearchText] = useState('');
   const { data: posts = [], isLoading: loading, error } = usePosts();
+  const { data: stories = [] } = useStories(user?.id);
   const likePostMutation = useLikePost();
+  const createStoryMutation = useCreateStory();
+  const deletePostMutation = useDeletePost();
 
   // Create dynamic styles based on theme
   const dynamicStyles = StyleSheet.create({
@@ -60,6 +64,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       paddingTop: 40,
       paddingHorizontal: 20,
       paddingBottom: 15,
+      backgroundColor: colors.background
     },
     title: {
       ...typography.headline,
@@ -76,6 +81,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       paddingVertical: 15,
       borderBottomWidth: 1,
       borderBottomColor: colors.divider,
+      backgroundColor: colors.background,
     },
     storiesScroll: {
       paddingHorizontal: 20,
@@ -96,8 +102,36 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       textAlign: 'center',
       maxWidth: 60,
     },
+    storyAvatarContainer: {
+      position: 'relative',
+    },
+    plusIconContainer: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      width: 20,
+      height: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
+    storyIndicator: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: colors.primary,
+      borderWidth: 2,
+      borderColor: colors.background,
+    },
     feedContainer: {
       paddingBottom: 80, // Account for tab bar
+      backgroundColor: colors.background,
     },
     postCard: {
       backgroundColor: colors.surface,
@@ -124,6 +158,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     },
     postUserInfo: {
       flex: 1,
+      gap: 4,
     },
     postUsername: {
       ...typography.body,
@@ -185,23 +220,77 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     },
   });
 
-  // Mock stories data
-  const stories = [
-    { id: '1', name: 'Your Story', avatar: 'https://avatar.iran.liara.run/public/boy' },
-    { id: '2', name: 'Alice', avatar: 'https://avatar.iran.liara.run/public/girl' },
-    { id: '3', name: 'Bob', avatar: 'https://avatar.iran.liara.run/public/boy' },
-    { id: '4', name: 'Carol', avatar: 'https://avatar.iran.liara.run/public/girl' },
-    { id: '5', name: 'David', avatar: 'https://avatar.iran.liara.run/public/boy' },
-  ];
+  // Prepare stories data with "Your Story" first
+  const processedStories = React.useMemo(() => {
+    const hasUserStory = stories.some(story => story.userId === user?.id);
+    const yourStory = hasUserStory
+      ? stories.find(story => story.userId === user?.id)
+      : { _id: 'your-story', userId: user?.id || '', imageUrl: '', timestamp: 0, user: { name: 'Your Story', avatarUrl: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || 'https://avatar.iran.liara.run/public/boy' } };
 
-  const renderStory = ({ item }: { item: any }) => (
-    <TouchableOpacity style={dynamicStyles.storyItem}>
-      <FastImage source={{ uri: item.avatar }} style={dynamicStyles.storyAvatar} />
-      <Text style={dynamicStyles.storyName} numberOfLines={1}>
-        {item.name}
-      </Text>
-    </TouchableOpacity>
-  );
+    const otherStories = stories.filter(story => story.userId !== user?.id);
+
+    return [yourStory, ...otherStories];
+  }, [stories, user]);
+
+  const handleAddStory = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'You must be logged in to add a story');
+      return;
+    }
+
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera roll permissions are required to add stories');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [9, 16],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await createStoryMutation.mutateAsync(result.assets[0].uri);
+        Alert.alert('Success', 'Story added successfully!');
+      }
+    } catch (error) {
+      console.error('Error adding story:', error);
+      Alert.alert('Error', 'Failed to add story');
+    }
+  };
+
+  const renderStory = ({ item }: { item: Story }) => {
+    const isYourStory = item._id === 'your-story';
+    const hasStory = item.imageUrl && item.imageUrl !== '';
+
+    return (
+      <TouchableOpacity
+        style={dynamicStyles.storyItem}
+        onPress={isYourStory ? handleAddStory : () => {/* Navigate to story viewer */}}
+      >
+        <View style={dynamicStyles.storyAvatarContainer}>
+          <FastImage
+            source={{ uri: item.user?.avatarUrl || 'https://avatar.iran.liara.run/public/boy' }}
+            style={dynamicStyles.storyAvatar}
+          />
+          {isYourStory && (
+            <View style={dynamicStyles.plusIconContainer}>
+              <MaterialIcons name="add" size={16} color={colors.primary} />
+            </View>
+          )}
+          {hasStory && !isYourStory && (
+            <View style={dynamicStyles.storyIndicator} />
+          )}
+        </View>
+        <Text style={dynamicStyles.storyName} numberOfLines={1}>
+          {item.user?.name || 'Unknown'}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   const handleLikePost = async (postId: string) => {
     if (!user?.id) {
@@ -226,13 +315,62 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     navigation.navigate('UserProfile', { userId });
   };
 
+  const handleDeletePost = async (postId: string) => {
+    console.log('handleDeletePost called with postId:', postId);
+    // For web, Alert doesn't work well, so we'll use window.confirm
+    if (typeof window !== 'undefined' && window.confirm) {
+      const confirmed = window.confirm('Are you sure you want to delete this post? This action cannot be undone.');
+      if (confirmed) {
+        console.log('Delete confirmed, calling mutation');
+        try {
+          await deletePostMutation.mutateAsync(postId);
+          console.log('Delete mutation completed');
+          alert('Post deleted successfully');
+        } catch (error) {
+          console.error('Error deleting post:', error);
+          alert('Failed to delete post');
+        }
+      } else {
+        console.log('Delete cancelled');
+      }
+    } else {
+      // For mobile, use Alert
+      Alert.alert(
+        'Delete Post',
+        'Are you sure you want to delete this post? This action cannot be undone.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => console.log('Delete cancelled'),
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              console.log('Delete confirmed, calling mutation');
+              try {
+                await deletePostMutation.mutateAsync(postId);
+                console.log('Delete mutation completed');
+                Alert.alert('Success', 'Post deleted successfully');
+              } catch (error) {
+                console.error('Error deleting post:', error);
+                Alert.alert('Error', 'Failed to delete post');
+              }
+            },
+          },
+        ]
+      );
+    }
+  };
+
   const renderPost = ({ item }: { item: Post }) => (
     <View style={dynamicStyles.postCard}>
       <View style={dynamicStyles.postHeader}>
         <TouchableOpacity onPress={() => handleUserPress(item.userId)}>
           <FastImage
             source={{
-              uri: item.user?.avatarUrl || 'https://via.placeholder.com/40x40/000000/FFFFFF?text=U',
+              uri: item.user?.avatarUrl || 'https://avatar.iran.liara.run/public/boy',
             }}
             style={dynamicStyles.postAvatar}
           />
@@ -261,7 +399,7 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <MaterialIcons
             name={item.isLiked ? "favorite" : "favorite-border"}
             size={24}
-            color="#FF3B30"
+            color={colors.error}
           />
           <Text style={dynamicStyles.actionCount}>{item.likesCount || 0}</Text>
         </TouchableOpacity>
@@ -274,9 +412,17 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Text style={dynamicStyles.actionCount}>{item.commentsCount || 0}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={dynamicStyles.actionButton}>
-          <MaterialIcons name="share" size={24} color={colors.textSecondary} />
-        </TouchableOpacity>
+        {item.userId === user?.id && (
+          <TouchableOpacity
+            style={dynamicStyles.actionButton}
+            onPress={() => {
+              console.log('Delete button pressed for post:', item._id, 'User:', user?.id, 'Post user:', item.userId);
+              handleDeletePost(item._id);
+            }}
+          >
+            <MaterialIcons name="delete" size={24} color={colors.error} />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -322,11 +468,21 @@ const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={dynamicStyles.storiesScroll}
             >
-              {stories.map((story) => (
-                <TouchableOpacity key={story.id} style={dynamicStyles.storyItem}>
-                  <FastImage source={{ uri: story.avatar }} style={dynamicStyles.storyAvatar} />
+              {processedStories.map((story) => (
+                <TouchableOpacity key={story?._id} style={dynamicStyles.storyItem}>
+                  <View style={dynamicStyles.storyAvatarContainer}>
+                    <FastImage source={{ uri: story?.user?.avatarUrl || 'https://avatar.iran.liara.run/public/boy' }} style={dynamicStyles.storyAvatar} />
+                    {story?._id === 'your-story' && (
+                      <View style={dynamicStyles.plusIconContainer}>
+                        <MaterialIcons name="add" size={16} color={colors.primary} />
+                      </View>
+                    )}
+                    {story?.imageUrl && story?._id !== 'your-story' && (
+                      <View style={dynamicStyles.storyIndicator} />
+                    )}
+                  </View>
                   <Text style={dynamicStyles.storyName} numberOfLines={1}>
-                    {story.name}
+                    {story?.user?.name || 'Unknown'}
                   </Text>
                 </TouchableOpacity>
               ))}
