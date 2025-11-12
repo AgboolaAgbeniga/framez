@@ -10,11 +10,149 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { typography, borderRadius, spacing } from '../lib/theme';
 
 const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { user, signOut } = useSupabaseAuth();
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, toggleTheme, colors } = useTheme();
   const [notifications, setNotifications] = useState(true);
+
+  // Create dynamic styles based on theme
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 50,
+      paddingHorizontal: 20,
+      paddingBottom: 15,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    headerIcon: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      ...typography.body,
+      color: colors.textPrimary,
+      fontSize: 16,
+    },
+    scrollContainer: {
+      flex: 1,
+    },
+    userSection: {
+      alignItems: 'center',
+      paddingVertical: 30,
+      paddingHorizontal: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    userAvatar: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 15,
+    },
+    userAvatarText: {
+      color: '#FFFFFF',
+      fontSize: 24,
+      fontWeight: 'bold',
+    },
+    displayName: {
+      ...typography.body,
+      color: colors.textPrimary,
+      fontSize: 16,
+      marginBottom: 5,
+    },
+    username: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginBottom: 20,
+    },
+    editProfileButton: {
+      borderWidth: 1,
+      borderColor: colors.error,
+      borderRadius: borderRadius.medium,
+      paddingHorizontal: 20,
+      paddingVertical: 8,
+    },
+    editProfileText: {
+      ...typography.button,
+      color: colors.error,
+      fontSize: 13,
+    },
+    settingsContainer: {
+      paddingHorizontal: 20,
+    },
+    section: {
+      marginTop: 30,
+    },
+    sectionTitle: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 15,
+    },
+    settingItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.divider,
+    },
+    settingLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    settingTitle: {
+      ...typography.body,
+      color: colors.textPrimary,
+      marginLeft: 15,
+    },
+    settingRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    actionButtonsContainer: {
+      paddingHorizontal: 20,
+      paddingVertical: 40,
+      gap: 20,
+    },
+    logoutButton: {
+      paddingVertical: 15,
+      paddingHorizontal: 30,
+      alignItems: 'center',
+    },
+    logoutText: {
+      ...typography.body,
+      color: colors.error,
+      fontWeight: '600',
+    },
+    deleteButton: {
+      paddingVertical: 15,
+      paddingHorizontal: 30,
+      alignItems: 'center',
+    },
+    deleteText: {
+      ...typography.body,
+      color: colors.error,
+      fontWeight: '600',
+    },
+  });
 
   const handleLogout = () => {
     Alert.alert(
@@ -131,49 +269,49 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     showChevron?: boolean;
     rightComponent?: React.ReactNode;
   }) => (
-    <TouchableOpacity style={styles.settingItem} onPress={onPress}>
-      <View style={styles.settingLeft}>
-        <MaterialIcons name={icon as any} size={24} color="#000000" />
-        <Text style={styles.settingTitle}>{title}</Text>
+    <TouchableOpacity style={dynamicStyles.settingItem} onPress={onPress}>
+      <View style={dynamicStyles.settingLeft}>
+        <MaterialIcons name={icon as any} size={24} color={colors.textPrimary} />
+        <Text style={dynamicStyles.settingTitle}>{title}</Text>
       </View>
-      <View style={styles.settingRight}>
+      <View style={dynamicStyles.settingRight}>
         {rightComponent}
-        {showChevron && <MaterialIcons name="chevron-right" size={24} color="#8E8E93" />}
+        {showChevron && <MaterialIcons name="chevron-right" size={24} color={colors.textSecondary} />}
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
+    <View style={dynamicStyles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIcon}>
-          <MaterialIcons name="arrow-back" size={24} color="#000000" />
+      <View style={dynamicStyles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={dynamicStyles.headerIcon}>
+          <MaterialIcons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.headerIcon} />
+        <Text style={dynamicStyles.headerTitle}>Settings</Text>
+        <View style={dynamicStyles.headerIcon} />
       </View>
 
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView style={dynamicStyles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* User Section */}
-        <View style={styles.userSection}>
-          <View style={styles.userAvatar}>
-            <Text style={styles.userAvatarText}>
+        <View style={dynamicStyles.userSection}>
+          <View style={dynamicStyles.userAvatar}>
+            <Text style={dynamicStyles.userAvatarText}>
               {user?.user_metadata?.name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
             </Text>
           </View>
-          <Text style={styles.displayName}>{user?.user_metadata?.name || user?.email || 'User'}</Text>
-          <Text style={styles.username}>@{user?.user_metadata?.name?.toLowerCase().replace(' ', '') || user?.email?.split('@')[0] || 'user'}</Text>
-          <TouchableOpacity style={styles.editProfileButton} onPress={handleEditProfile}>
-            <Text style={styles.editProfileText}>Edit Profile</Text>
+          <Text style={dynamicStyles.displayName}>{user?.user_metadata?.name || user?.email || 'User'}</Text>
+          <Text style={dynamicStyles.username}>@{user?.user_metadata?.name?.toLowerCase().replace(' ', '') || user?.email?.split('@')[0] || 'user'}</Text>
+          <TouchableOpacity style={dynamicStyles.editProfileButton} onPress={handleEditProfile}>
+            <Text style={dynamicStyles.editProfileText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
 
         {/* Settings Options */}
-        <View style={styles.settingsContainer}>
+        <View style={dynamicStyles.settingsContainer}>
           {/* Account Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Account</Text>
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Account</Text>
             <SettingItem
               icon="lock"
               title="Change Password"
@@ -182,18 +320,18 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
 
           {/* Preferences Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Preferences</Text>
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Preferences</Text>
             <SettingItem
               icon="dark-mode"
               title="Dark Mode"
               showChevron={false}
               rightComponent={
                 <Switch
-                  value={darkMode}
-                  onValueChange={setDarkMode}
-                  trackColor={{ false: '#E5E5EA', true: '#FF3B30' }}
-                  thumbColor={darkMode ? '#FFFFFF' : '#FFFFFF'}
+                  value={theme === 'dark'}
+                  onValueChange={toggleTheme}
+                  trackColor={{ false: colors.inputBorder, true: colors.primary }}
+                  thumbColor="#FFFFFF"
                 />
               }
             />
@@ -205,16 +343,16 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Switch
                   value={notifications}
                   onValueChange={setNotifications}
-                  trackColor={{ false: '#E5E5EA', true: '#FF3B30' }}
-                  thumbColor={notifications ? '#FFFFFF' : '#FFFFFF'}
+                  trackColor={{ false: colors.inputBorder, true: colors.primary }}
+                  thumbColor="#FFFFFF"
                 />
               }
             />
           </View>
 
           {/* Support Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Support</Text>
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Support</Text>
             <SettingItem
               icon="privacy-tip"
               title="Privacy Policy"
@@ -234,13 +372,13 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         </View>
 
         {/* Action Buttons */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Log Out</Text>
+        <View style={dynamicStyles.actionButtonsContainer}>
+          <TouchableOpacity style={dynamicStyles.logoutButton} onPress={handleLogout}>
+            <Text style={dynamicStyles.logoutText}>Log Out</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount}>
-            <Text style={styles.deleteText}>Delete My Account</Text>
+          <TouchableOpacity style={dynamicStyles.deleteButton} onPress={handleDeleteAccount}>
+            <Text style={dynamicStyles.deleteText}>Delete My Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -248,140 +386,5 @@ const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  userSection: {
-    alignItems: 'center',
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  userAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#006175',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  userAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  displayName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000000',
-    marginBottom: 5,
-  },
-  username: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginBottom: 20,
-  },
-  editProfileButton: {
-    borderWidth: 1,
-    borderColor: '#FF3B30',
-    borderRadius: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  editProfileText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#FF3B30',
-  },
-  settingsContainer: {
-    paddingHorizontal: 20,
-  },
-  section: {
-    marginTop: 30,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#8E8E93',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 15,
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  settingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingTitle: {
-    fontSize: 16,
-    color: '#000000',
-    marginLeft: 15,
-  },
-  settingRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButtonsContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 40,
-    gap: 20,
-  },
-  logoutButton: {
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    alignItems: 'center',
-  },
-  logoutText: {
-    fontSize: 16,
-    color: '#FF3B30',
-    fontWeight: '600',
-  },
-  deleteButton: {
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    alignItems: 'center',
-  },
-  deleteText: {
-    fontSize: 16,
-    color: '#FF3B30',
-    fontWeight: '600',
-  },
-});
 
 export default SettingsScreen;
